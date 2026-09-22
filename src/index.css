@@ -1,7 +1,27 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------
+   PLAYGROUND design system - Neo-Brutalist / Pop-Art.
+   Tailwind v4 is configured from CSS (the @tailwindcss/vite plugin
+   reads this block), so these tokens are the tailwind config:
+   every --color-x below becomes a bg, text and border utility.
+   --------------------------------------------------------------- */
 @theme {
-  --font-sans: "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Rubik", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Rubik", ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-sky: #0082fb;
+  --color-brand-lime: #b4f000;
+  --color-brand-yellow: #ffe57f;
+  --color-brand-coral: #ff4d30;
+  --color-brand-white: #ffffff;
+  --color-brand-black: #000000;
+
+  /* Hard pop-art shadows - no blur, no spread, pure black. */
+  --shadow-brutal-xs: 2px 2px 0px #000;
+  --shadow-brutal-sm: 4px 4px 0px #000;
+  --shadow-brutal: 6px 6px 0px #000;
+  --shadow-brutal-lg: 10px 10px 0px #000;
 }
 
 html,
@@ -10,8 +30,16 @@ body,
   min-height: 100%;
 }
 
+body,
+#root {
+  background-color: var(--color-brand-sky);
+}
+
 body {
-  @apply bg-slate-950 text-slate-100 font-sans antialiased;
+  color: var(--color-brand-black);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Keep native number/date controls from flipping awkwardly in RTL. */

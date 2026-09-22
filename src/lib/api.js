@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
-import { TICKET_TYPES } from './format'
-import { priceFor, resolveActiveTier } from './tiers'
+import { GROUP_SOLD_OUT_NOTE, TICKET_TYPES } from './format'
+import { isTypeAvailable, priceFor, resolveActiveTier } from './tiers'
 
 const unwrap = ({ data, error }) => {
   if (error) throw new Error(error.message)
@@ -80,6 +80,7 @@ export async function createOrder({ buyerName, buyerPhone, ticketType, attendees
   const [tiers, soldCount] = await Promise.all([fetchTiers(), fetchSoldCount()])
   const { tier } = resolveActiveTier(tiers, soldCount)
   if (!tier) throw new Error('הכרטיסים אזלו')
+  if (!isTypeAvailable(tier, ticketType)) throw new Error(GROUP_SOLD_OUT_NOTE)
 
   const { total } = priceFor(tier, ticketType)
 

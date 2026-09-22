@@ -23,10 +23,27 @@ export function resolveActiveTier(tiers, soldCount) {
 export const totalCapacity = (tiers) =>
   tiers.reduce((sum, tier) => sum + (tier.capacity || 0), 0)
 
+/**
+ * A tier with no price for a ticket type does not sell it at all - that is how
+ * the last round ("רגע אחרון") drops the group ticket.
+ */
+export function isTypeAvailable(tier, type) {
+  const meta = TICKET_TYPES[type]
+  if (!tier || !meta) return false
+  const price = tier[meta.priceField]
+  return price !== null && price !== undefined && price !== ''
+}
+
+/** The ticket types the given tier actually sells, in display order. */
+export const availableTypes = (tier) =>
+  Object.values(TICKET_TYPES).filter((meta) => isTypeAvailable(tier, meta.key))
+
 /** Price of a whole order of `type` at `tier`, plus the "full price" reference. */
 export function priceFor(tier, type) {
   const meta = TICKET_TYPES[type]
-  if (!tier || !meta) return { total: 0, fullPrice: 0, discount: 0, perPerson: 0 }
+  if (!tier || !meta || !isTypeAvailable(tier, type)) {
+    return { total: 0, fullPrice: 0, discount: 0, perPerson: 0, available: false }
+  }
   const total = Number(tier[meta.priceField]) || 0
   const fullPrice = (Number(tier.price_single) || 0) * meta.count
   return {
@@ -34,5 +51,6 @@ export function priceFor(tier, type) {
     fullPrice,
     discount: Math.max(fullPrice - total, 0),
     perPerson: total / meta.count,
+    available: true,
   }
 }

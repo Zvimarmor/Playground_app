@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BadgeCheck, Banknote, Download, LogOut, RefreshCw, Ticket, UserPlus, XCircle,
+  BadgeCheck, Banknote, Download, Hourglass, LogOut, RefreshCw, Ticket, UserPlus, XCircle,
 } from 'lucide-react'
 import {
   createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus,
 } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import {
-  STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone,
+  GROUP_SOLD_OUT_NOTE, STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES,
+  formatDateTime, formatMoney, isValidPhone,
 } from '../lib/format'
-import { priceFor, resolveActiveTier, totalCapacity } from '../lib/tiers'
+import { isTypeAvailable, priceFor, resolveActiveTier, totalCapacity } from '../lib/tiers'
 import { downloadCsv } from '../lib/csv'
 import { usePinGate } from '../hooks/usePinGate'
 import PinGate from '../components/PinGate'
 import ContactPicker from '../components/ContactPicker'
-import { Button, Card, ErrorBanner, Field, FullPageSpinner, StatusPill, inputClass } from '../components/ui'
+import EventHeader from '../components/EventHeader'
+import {
+  Badge, Button, Card, ErrorBanner, Field, FullPageSpinner, Sky, StatusPill, inputClass,
+} from '../components/ui'
 
 export default function AdminView() {
   const gate = usePinGate('admin')
@@ -83,9 +87,11 @@ function Dashboard({ onLock }) {
 
   if (!data || !metrics) {
     return error ? (
-      <div className="p-6">
-        <ErrorBanner error={error} />
-      </div>
+      <Sky>
+        <div className="p-6">
+          <ErrorBanner error={error} />
+        </div>
+      </Sky>
     ) : (
       <FullPageSpinner />
     )
@@ -123,105 +129,125 @@ function Dashboard({ onLock }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4 pb-16 sm:p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3 pt-4">
-        <div>
-          <h1 className="text-2xl font-black">{data.config?.event_name ?? 'ניהול האירוע'}</h1>
-          <p className="text-sm text-slate-400">
-            {activeTier ? `סבב פעיל: ${activeTier.name}` : 'כל הכרטיסים נמכרו'}
-          </p>
+    <Sky>
+      <div className="mx-auto max-w-4xl space-y-6 p-4 pb-16 sm:p-6">
+        <div className="pt-2">
+          <EventHeader compact />
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={load} className="px-3">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" onClick={exportCsv}>
-            <Download className="h-4 w-4" />
-            ייצוא CSV
-          </Button>
-          <Button variant="ghost" onClick={onLock} className="px-3">
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
-      </header>
 
-      <ErrorBanner error={error} onDismiss={() => setError(null)} />
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border-[3px] border-brand-black bg-brand-white p-4 shadow-brutal">
+          <div>
+            <h1 className="text-xl font-black">{data.config?.event_name ?? 'ניהול האירוע'}</h1>
+            <div className="mt-1">
+              <Badge tone={activeTier ? 'lime' : 'coral'}>
+                {activeTier ? `סבב פעיל: ${activeTier.name}` : 'כל הכרטיסים נמכרו'}
+              </Badge>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={load} aria-label="רענון" className="px-3">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" onClick={exportCsv}>
+              <Download className="h-4 w-4" />
+              ייצוא CSV
+            </Button>
+            <Button variant="ghost" onClick={onLock} aria-label="יציאה" className="px-3">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </header>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Metric
-          icon={Ticket}
-          label="כרטיסים שנמכרו"
-          value={`${metrics.sold} / ${metrics.capacity}`}
-          hint={`${Math.max(metrics.capacity - metrics.sold, 0)} מקומות פנויים`}
+        <ErrorBanner error={error} onDismiss={() => setError(null)} />
+
+        <section className="grid gap-3 sm:grid-cols-3">
+          <Metric
+            tone="lime"
+            icon={Ticket}
+            label="כרטיסים שנמכרו"
+            value={<span dir="ltr">{metrics.sold} / {metrics.capacity}</span>}
+            hint={`${Math.max(metrics.capacity - metrics.sold, 0)} מקומות פנויים`}
+          />
+          <Metric
+            tone="yellow"
+            icon={Banknote}
+            label='סה"כ הכנסות מאושרות'
+            value={formatMoney(metrics.paidRevenue)}
+            hint={`${metrics.checkedIn} מתוך ${metrics.eligible} כבר נכנסו לאירוע`}
+          />
+          <Metric
+            tone="coral"
+            icon={Hourglass}
+            label="ממתינים לאישור תשלום"
+            value={metrics.pendingOrders.length}
+            hint={`${formatMoney(metrics.pendingRevenue)} ממתינים לאישור`}
+          />
+        </section>
+
+        <PendingApprovals
+          orders={metrics.pendingOrders}
+          busyOrderId={busyOrderId}
+          onApprove={(id) => updateStatus(id, 'paid')}
+          onCancel={(id) => updateStatus(id, 'cancelled')}
         />
-        <Metric
-          icon={Banknote}
-          label="הכנסות שאושרו"
-          value={formatMoney(metrics.paidRevenue)}
-          hint={`${formatMoney(metrics.pendingRevenue)} ממתינים לאישור`}
-        />
-        <Metric
-          icon={BadgeCheck}
-          label="נכנסו לאירוע"
-          value={`${metrics.checkedIn} / ${metrics.eligible}`}
-          hint="מתוך בעלי כרטיס מאושר"
-        />
-      </section>
 
-      <PendingApprovals
-        orders={metrics.pendingOrders}
-        busyOrderId={busyOrderId}
-        onApprove={(id) => updateStatus(id, 'paid')}
-        onCancel={(id) => updateStatus(id, 'cancelled')}
-      />
+        <ManualEntry tiers={data.tiers} sold={metrics.sold} onCreated={load} />
 
-      <ManualEntry tiers={data.tiers} sold={metrics.sold} onCreated={load} />
+        <AllOrders orders={data.orders} />
+      </div>
+    </Sky>
+  )
+}
 
-      <AllOrders orders={data.orders} />
+function Metric({ icon: Icon, label, value, hint, tone }) {
+  const tones = {
+    lime: 'bg-brand-lime text-brand-black',
+    yellow: 'bg-brand-yellow text-brand-black',
+    coral: 'bg-brand-coral text-brand-white',
+  }
+  return (
+    <div className={`rounded-3xl border-[3px] border-brand-black p-5 shadow-brutal ${tones[tone]}`}>
+      <div className="flex items-center gap-2 text-sm font-extrabold">
+        <Icon className="h-5 w-5" />
+        {label}
+      </div>
+      <div className="mt-2 text-3xl font-black">{value}</div>
+      {hint && <div className="mt-1 text-xs font-bold opacity-75">{hint}</div>}
     </div>
   )
 }
 
-function Metric({ icon: Icon, label, value, hint }) {
-  return (
-    <Card>
-      <div className="flex items-center gap-2 text-sm text-slate-400">
-        <Icon className="h-4 w-4" />
-        {label}
-      </div>
-      <div className="mt-2 text-2xl font-black">{value}</div>
-      {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
-    </Card>
-  )
+function SectionTitle({ children }) {
+  return <h2 className="text-lg font-black text-brand-white drop-shadow-[2px_2px_0_#000]">{children}</h2>
 }
 
 function PendingApprovals({ orders, busyOrderId, onApprove, onCancel }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-bold text-slate-400">
-        ממתינים לאישור תשלום ({orders.length})
-      </h2>
+      <SectionTitle>ממתינים לאישור תשלום ({orders.length})</SectionTitle>
       {orders.length === 0 ? (
-        <Card className="text-center text-sm text-slate-500">אין הזמנות שממתינות לאישור.</Card>
+        <Card className="text-center text-sm font-extrabold text-brand-black/60">
+          אין הזמנות שממתינות לאישור.
+        </Card>
       ) : (
         orders.map((order) => (
           <Card key={order.id} className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="font-bold">{order.buyer_name}</div>
-              <div className="text-xs text-slate-400" dir="ltr">
+              <div className="text-lg font-black">{order.buyer_name}</div>
+              <div className="text-sm font-bold text-brand-black/60" dir="ltr">
                 {order.buyer_phone}
               </div>
-              <div className="mt-1 text-xs text-slate-500">
+              <div className="mt-1 text-xs font-bold text-brand-black/60">
                 {TICKET_TYPES[order.ticket_type]?.label} · {order.tickets_count} כרטיסים ·{' '}
                 {formatDateTime(order.created_at)}
                 {order.tier_name && ` · ${order.tier_name}`}
               </div>
-              <div className="mt-1 text-xs text-slate-400">
+              <div className="mt-1 text-xs font-bold text-brand-black/70">
                 משתתפים: {(order.tickets ?? []).map((ticket) => ticket.attendee_name).join(', ')}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-lg font-black">{formatMoney(order.total_amount)}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-2xl font-black">{formatMoney(order.total_amount)}</div>
               <Button
                 variant="success"
                 busy={busyOrderId === order.id}
@@ -255,7 +281,9 @@ function ManualEntry({ tiers, sold, onCreated }) {
   const [done, setDone] = useState(null)
 
   const { tier } = resolveActiveTier(tiers, sold)
-  const pricing = tier ? priceFor(tier, ticketType) : null
+  // Same rule as the storefront: a tier without a group price cannot sell one.
+  const selectedType = isTypeAvailable(tier, ticketType) ? ticketType : 'single'
+  const pricing = tier ? priceFor(tier, selectedType) : null
 
   const submit = async (event) => {
     event.preventDefault()
@@ -266,7 +294,7 @@ function ManualEntry({ tiers, sold, onCreated }) {
 
     setBusy(true)
     try {
-      const count = TICKET_TYPES[ticketType].count
+      const count = TICKET_TYPES[selectedType].count
       const attendees = Array.from({ length: count }, (_, index) => ({
         name: index === 0 ? name : `${name} (${index + 1})`,
         phone,
@@ -274,7 +302,7 @@ function ManualEntry({ tiers, sold, onCreated }) {
       await createOrder({
         buyerName: name,
         buyerPhone: phone,
-        ticketType,
+        ticketType: selectedType,
         attendees,
         status: 'paid',
       })
@@ -292,7 +320,7 @@ function ManualEntry({ tiers, sold, onCreated }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-bold text-slate-400">הוספת משתתף ידנית (משולם)</h2>
+      <SectionTitle>הוספת משתתף ידנית (משולם)</SectionTitle>
       <Card>
         <form onSubmit={submit} className="space-y-4">
           <ContactPicker
@@ -324,33 +352,40 @@ function ManualEntry({ tiers, sold, onCreated }) {
 
           <Field label="סוג כרטיס">
             <div className="flex flex-wrap gap-2">
-              {TICKET_TYPE_LIST.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setTicketType(option.key)}
-                  className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
-                    ticketType === option.key
-                      ? 'border-sky-500 bg-sky-500/10 text-sky-300'
-                      : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+              {TICKET_TYPE_LIST.map((option) => {
+                const available = isTypeAvailable(tier, option.key)
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={!available}
+                    onClick={() => setTicketType(option.key)}
+                    className={`rounded-2xl border-2 border-brand-black px-4 py-2.5 text-sm font-extrabold
+                      shadow-brutal-xs transition-all active:translate-x-[2px] active:translate-y-[2px]
+                      disabled:cursor-not-allowed disabled:opacity-40 ${
+                        selectedType === option.key ? 'bg-brand-yellow' : 'bg-brand-white'
+                      }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
             </div>
+            {tier && !isTypeAvailable(tier, 'quad') && (
+              <p className="mt-2 text-xs font-extrabold text-brand-coral">{GROUP_SOLD_OUT_NOTE}</p>
+            )}
           </Field>
 
           {pricing && (
-            <p className="text-xs text-slate-500">
-              ייווצרו {TICKET_TYPES[ticketType].count} כרטיסים בסכום {formatMoney(pricing.total)} לפי{' '}
+            <p className="text-xs font-bold text-brand-black/60">
+              ייווצרו {TICKET_TYPES[selectedType].count} כרטיסים בסכום {formatMoney(pricing.total)} לפי{' '}
               {tier.name}, בסטטוס "שולם".
             </p>
           )}
 
           <ErrorBanner error={error} onDismiss={() => setError(null)} />
           {done && (
-            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            <p className="rounded-2xl border-[3px] border-brand-black bg-brand-lime px-4 py-3 text-sm font-extrabold shadow-brutal-xs">
               {done}
             </p>
           )}
@@ -368,36 +403,36 @@ function ManualEntry({ tiers, sold, onCreated }) {
 function AllOrders({ orders }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-bold text-slate-400">כל ההזמנות ({orders.length})</h2>
+      <SectionTitle>כל ההזמנות ({orders.length})</SectionTitle>
       <Card className="overflow-x-auto p-0">
         <table className="w-full text-right text-sm">
-          <thead className="border-b border-slate-800 text-xs text-slate-400">
+          <thead className="border-b-[3px] border-brand-black bg-brand-yellow text-xs font-black">
             <tr>
-              <th className="p-3 font-medium">שם</th>
-              <th className="p-3 font-medium">טלפון</th>
-              <th className="p-3 font-medium">כרטיס</th>
-              <th className="p-3 font-medium">סכום</th>
-              <th className="p-3 font-medium">סטטוס</th>
-              <th className="p-3 font-medium">נכנסו</th>
+              <th className="p-3">שם</th>
+              <th className="p-3">טלפון</th>
+              <th className="p-3">כרטיס</th>
+              <th className="p-3">סכום</th>
+              <th className="p-3">סטטוס</th>
+              <th className="p-3">נכנסו</th>
             </tr>
           </thead>
           <tbody>
             {orders.map((order) => {
               const tickets = order.tickets ?? []
               return (
-                <tr key={order.id} className="border-b border-slate-800/60 last:border-0">
-                  <td className="p-3 font-medium">{order.buyer_name}</td>
-                  <td className="p-3 text-slate-400" dir="ltr">
+                <tr key={order.id} className="border-b-2 border-brand-black/15 last:border-0">
+                  <td className="p-3 font-extrabold">{order.buyer_name}</td>
+                  <td className="p-3 font-bold text-brand-black/60" dir="ltr">
                     {order.buyer_phone}
                   </td>
-                  <td className="p-3 text-slate-400">
-                    {TICKET_TYPES[order.ticket_type]?.label} ({order.tickets_count})
+                  <td className="p-3 font-bold text-brand-black/70">
+                    {TICKET_TYPES[order.ticket_type]?.short ?? order.ticket_type} ({order.tickets_count})
                   </td>
-                  <td className="p-3">{formatMoney(order.total_amount)}</td>
+                  <td className="p-3 font-black">{formatMoney(order.total_amount)}</td>
                   <td className="p-3">
                     <StatusPill status={order.payment_status} />
                   </td>
-                  <td className="p-3 text-slate-400">
+                  <td className="p-3 font-bold text-brand-black/70" dir="ltr">
                     {tickets.filter((ticket) => ticket.is_checked_in).length} / {tickets.length}
                   </td>
                 </tr>

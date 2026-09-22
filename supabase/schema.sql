@@ -1,6 +1,7 @@
 -- =========================================================
---  Event ticketing & door management - Supabase schema
+--  PLAYGROUND - ticketing & door management - Supabase schema
 --  Run this whole file in the Supabase SQL editor.
+--  It is idempotent: safe to re-run on an existing project.
 -- =========================================================
 
 create extension if not exists "pgcrypto";
@@ -19,13 +20,14 @@ create table if not exists public.events_config (
   created_at    timestamptz not null default now()
 );
 
+-- price_quad is nullable on purpose: a null means "no group ticket in this
+-- tier" (the last round sells singles only).
 create table if not exists public.tiers (
   id           uuid primary key default gen_random_uuid(),
   name         text    not null,
   capacity     int     not null check (capacity > 0),
   price_single numeric not null check (price_single >= 0),
-  price_pair   numeric not null check (price_pair   >= 0),
-  price_quad   numeric not null check (price_quad   >= 0),
+  price_quad   numeric          check (price_quad   >= 0),
   sort_order   int     not null default 0,
   created_at   timestamptz not null default now()
 );
@@ -36,8 +38,8 @@ create table if not exists public.orders (
   created_at     timestamptz not null default now(),
   buyer_name     text    not null,
   buyer_phone    text    not null,
-  ticket_type    text    not null check (ticket_type in ('single','pair','quad')),
-  tickets_count  int     not null check (tickets_count in (1,2,4)),
+  ticket_type    text    not null check (ticket_type in ('single','quad')),
+  tickets_count  int     not null check (tickets_count in (1,4)),
   total_amount   numeric not null check (total_amount >= 0),
   payment_status text    not null default 'pending'
                  check (payment_status in ('pending','paid','cancelled')),
@@ -57,6 +59,38 @@ create table if not exists public.tickets (
   checked_in_at timestamptz
 );
 create index if not exists tickets_order_id_idx on public.tickets (order_id);
+
+-- ---------- migration: drop the retired "pair" ticket ----------------
+-- Older installs had a price_pair column and allowed ticket_type = 'pair'.
+-- A 2-ticket order cannot be represented any more, so each pair order is
+-- folded down to a single: the surplus attendee row goes first, then the
+-- order itself. The order keeps its original total_amount, so if a real pair
+-- order ever existed, check it by hand after running this - see the README.
+
+delete from public.tickets t
+ using public.orders o
+ where t.order_id = o.id
+   and o.ticket_type = 'pair'
+   and t.id <> (
+     select t2.id from public.tickets t2
+      where t2.order_id = o.id
+      order by t2.created_at, t2.id
+      limit 1
+   );
+
+update public.orders
+   set ticket_type = 'single', tickets_count = 1
+ where ticket_type = 'pair';
+
+alter table public.orders  drop constraint if exists orders_ticket_type_check;
+alter table public.orders  drop constraint if exists orders_tickets_count_check;
+alter table public.orders  add  constraint orders_ticket_type_check
+  check (ticket_type in ('single','quad'));
+alter table public.orders  add  constraint orders_tickets_count_check
+  check (tickets_count in (1,4));
+
+alter table public.tiers   drop column if exists price_pair;
+alter table public.tiers   alter column price_quad drop not null;
 
 -- ---------- public config view (never exposes the PINs) -------------
 
@@ -116,17 +150,35 @@ grant execute on function public.verify_pin(text) to anon, authenticated;
 -- ---------- seed data ------------------------------------------------
 
 insert into public.events_config (event_name, sales_start_at, sales_end_at, is_active, paybox_url, helper_pin, admin_pin)
-select 'מסיבת הסיום', now() - interval '1 day', now() + interval '30 days', true,
+select 'PLAYGROUND', now() - interval '1 day', timestamptz '2026-10-23 11:00+03', true,
        'https://payboxapp.page.link/example', '1234', '9999'
 where not exists (select 1 from public.events_config);
 
-insert into public.tiers (name, capacity, price_single, price_pair, price_quad, sort_order)
+--  tier            capacity  single  quad (4 people)
+--  מוקדמות             40      80      280   (70 ₪ לאדם)
+--  כרטיס רגיל          80      90      320   (80 ₪ לאדם)
+--  רגע אחרון           40     100      ----  (אין כרטיס קבוצתי)
+insert into public.tiers (name, capacity, price_single, price_quad, sort_order)
 select * from (values
-  ('סבב ראשון',  50, 60::numeric, 110::numeric, 200::numeric, 1),
-  ('סבב שני',    70, 70::numeric, 130::numeric, 240::numeric, 2),
-  ('סבב אחרון', 100, 80::numeric, 150::numeric, 280::numeric, 3)
-) as t(name, capacity, price_single, price_pair, price_quad, sort_order)
+  ('מוקדמות',    40,  80::numeric, 280::numeric, 1),
+  ('כרטיס רגיל', 80,  90::numeric, 320::numeric, 2),
+  ('רגע אחרון',  40, 100::numeric, null::numeric, 3)
+) as t(name, capacity, price_single, price_quad, sort_order)
 where not exists (select 1 from public.tiers);
+
+-- Re-running on an install that still carries the old seed prices brings
+-- the three tiers up to date in place.
+update public.tiers t set
+  name         = v.name,
+  capacity     = v.capacity,
+  price_single = v.price_single,
+  price_quad   = v.price_quad
+from (values
+  (1, 'מוקדמות',    40,  80::numeric, 280::numeric),
+  (2, 'כרטיס רגיל', 80,  90::numeric, 320::numeric),
+  (3, 'רגע אחרון',  40, 100::numeric, null::numeric)
+) as v(sort_order, name, capacity, price_single, price_quad)
+where t.sort_order = v.sort_order;
 
 -- ---------- realtime --------------------------------------------------
 do $$

@@ -1,52 +1,152 @@
 import { Loader2 } from 'lucide-react'
 
 export function Spinner({ className = 'h-6 w-6' }) {
-  return <Loader2 className={`animate-spin text-slate-400 ${className}`} />
+  return <Loader2 className={`animate-spin ${className}`} />
 }
 
 export function FullPageSpinner() {
   return (
-    <div className="min-h-screen grid place-items-center">
-      <Spinner className="h-8 w-8" />
+    <Sky>
+      <div className="grid min-h-screen place-items-center">
+        <div className="grid h-20 w-20 place-items-center rounded-3xl border-[3px] border-brand-black bg-brand-white shadow-brutal">
+          <Spinner className="h-9 w-9 text-brand-black" />
+        </div>
+      </div>
+    </Sky>
+  )
+}
+
+/* -------------------------------------------------------------------
+   Decorative sky. Pure inline SVG - no image files, no network calls.
+   The clouds sit behind everything and never swallow a tap.
+   ------------------------------------------------------------------- */
+
+function Cloud({ className = '', opacity = 1 }) {
+  return (
+    <svg
+      viewBox="0 0 200 110"
+      aria-hidden="true"
+      className={`absolute text-brand-white ${className}`}
+      style={{ opacity }}
+    >
+      <path
+        d="M44 96c-19 0-34-13-34-30 0-15 12-27 28-29C41 20 57 8 76 8c15 0 28 7 35 19 5-3 11-5 17-5 16 0 29 12 30 27 15 2 26 13 26 27 0 11-9 20-21 20H44Z"
+        fill="currentColor"
+        stroke="#000"
+        strokeWidth="5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function Sun({ className = '' }) {
+  return (
+    <svg viewBox="0 0 120 120" aria-hidden="true" className={`absolute ${className}`}>
+      {Array.from({ length: 12 }, (_, i) => (
+        <rect
+          key={i}
+          x="57"
+          y="2"
+          width="6"
+          height="18"
+          rx="3"
+          fill="#FFE57F"
+          stroke="#000"
+          strokeWidth="3"
+          transform={`rotate(${i * 30} 60 60)`}
+        />
+      ))}
+      <circle cx="60" cy="60" r="30" fill="#FFE57F" stroke="#000" strokeWidth="5" />
+    </svg>
+  )
+}
+
+/** Full-bleed daytime backdrop used by every route. */
+export function Sky({ children, className = '' }) {
+  return (
+    <div className={`relative min-h-screen overflow-hidden bg-brand-sky ${className}`}>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
+        <Sun className="-left-6 top-6 h-32 w-32 sm:left-6" />
+        <Cloud className="right-[-3rem] top-24 h-24 w-44" opacity={0.95} />
+        <Cloud className="left-[-2rem] top-[38%] h-20 w-36" opacity={0.75} />
+        <Cloud className="right-4 top-[62%] h-16 w-28" opacity={0.6} />
+        <Cloud className="left-8 bottom-10 h-20 w-36" opacity={0.5} />
+      </div>
+      <div className="relative">{children}</div>
     </div>
   )
 }
 
-export function Card({ className = '', children }) {
+/* ------------------------------ surfaces --------------------------- */
+
+export function Card({ className = '', children, ...props }) {
   return (
-    <div className={`rounded-2xl border border-slate-800 bg-slate-900/60 p-5 ${className}`}>
+    <div
+      {...props}
+      className={`rounded-3xl border-[3px] border-brand-black bg-brand-white p-5 shadow-brutal ${className}`}
+    >
       {children}
     </div>
+  )
+}
+
+/** Small hard-edged label chip. */
+export function Badge({ tone = 'lime', className = '', children }) {
+  const tones = {
+    lime: 'bg-brand-lime text-brand-black',
+    yellow: 'bg-brand-yellow text-brand-black',
+    coral: 'bg-brand-coral text-brand-white',
+    white: 'bg-brand-white text-brand-black',
+    black: 'bg-brand-black text-brand-white',
+  }
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-xl border-2 border-brand-black px-3 py-1
+        text-xs font-extrabold shadow-brutal-xs sm:text-sm ${tones[tone]} ${className}`}
+    >
+      {children}
+    </span>
   )
 }
 
 export function Field({ label, hint, children }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-300">{label}</span>
+      <span className="mb-1.5 block text-sm font-extrabold text-brand-black">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-xs font-semibold text-brand-black/60">{hint}</span>}
     </label>
   )
 }
 
 export const inputClass =
-  'w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 ' +
-  'placeholder:text-slate-600 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30'
+  'w-full rounded-2xl border-[3px] border-brand-black bg-brand-white px-4 py-3.5 text-base font-bold ' +
+  'text-brand-black shadow-brutal-xs outline-none transition placeholder:font-semibold ' +
+  'placeholder:text-brand-black/35 focus:bg-brand-yellow focus:shadow-brutal-sm'
+
+/* ------------------------------ actions ---------------------------- */
+
+const BUTTON_BASE =
+  'inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-brand-black px-4 py-3 ' +
+  'text-sm font-extrabold shadow-brutal-sm transition-all active:translate-x-[2px] ' +
+  'active:translate-y-[2px] active:shadow-brutal-xs disabled:cursor-not-allowed ' +
+  'disabled:opacity-50 disabled:active:translate-x-0 disabled:active:translate-y-0 ' +
+  'disabled:active:shadow-brutal-sm'
 
 export function Button({ variant = 'primary', className = '', busy = false, children, ...props }) {
   const variants = {
-    primary: 'bg-sky-500 text-slate-950 hover:bg-sky-400',
-    success: 'bg-emerald-500 text-slate-950 hover:bg-emerald-400',
-    danger: 'bg-rose-500/90 text-white hover:bg-rose-500',
-    ghost: 'border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800',
+    primary: 'bg-brand-coral text-brand-white',
+    success: 'bg-brand-lime text-brand-black',
+    warning: 'bg-brand-yellow text-brand-black',
+    danger: 'bg-brand-black text-brand-white',
+    ghost: 'bg-brand-white text-brand-black',
   }
   return (
     <button
       {...props}
       disabled={props.disabled || busy}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold
-        transition disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`${BUTTON_BASE} ${variants[variant]} ${className}`}
     >
       {busy && <Spinner className="h-4 w-4" />}
       {children}
@@ -59,8 +159,9 @@ export function ErrorBanner({ error, onDismiss }) {
   return (
     <div
       role="alert"
-      className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
       onClick={onDismiss}
+      className="rounded-2xl border-[3px] border-brand-black bg-brand-coral px-4 py-3
+        text-sm font-extrabold text-brand-white shadow-brutal-sm"
     >
       {typeof error === 'string' ? error : error.message}
     </div>
@@ -68,15 +169,7 @@ export function ErrorBanner({ error, onDismiss }) {
 }
 
 export function StatusPill({ status }) {
-  const styles = {
-    pending: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-    paid: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-    cancelled: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
-  }
+  const tones = { pending: 'yellow', paid: 'lime', cancelled: 'white' }
   const labels = { pending: 'ממתין', paid: 'שולם', cancelled: 'בוטל' }
-  return (
-    <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${styles[status]}`}>
-      {labels[status]}
-    </span>
-  )
+  return <Badge tone={tones[status] ?? 'white'}>{labels[status] ?? status}</Badge>
 }

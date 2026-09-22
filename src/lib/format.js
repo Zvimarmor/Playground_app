@@ -1,10 +1,12 @@
 export const TICKET_TYPES = {
-  single: { key: 'single', label: 'יחיד', count: 1, priceField: 'price_single' },
-  pair:   { key: 'pair',   label: 'זוגי', count: 2, priceField: 'price_pair' },
-  quad:   { key: 'quad',   label: 'רביעייה', count: 4, priceField: 'price_quad' },
+  single: { key: 'single', label: 'כרטיס יחיד', short: 'יחיד', count: 1, priceField: 'price_single' },
+  quad:   { key: 'quad',   label: 'כרטיס קבוצתי', short: 'קבוצתי', count: 4, priceField: 'price_quad' },
 }
 
-export const TICKET_TYPE_LIST = [TICKET_TYPES.single, TICKET_TYPES.pair, TICKET_TYPES.quad]
+export const TICKET_TYPE_LIST = [TICKET_TYPES.single, TICKET_TYPES.quad]
+
+/** Shown when the active tier has no group ticket left to sell. */
+export const GROUP_SOLD_OUT_NOTE = 'כרטיסים קבוצתיים אזלו לסבב זה'
 
 export const STATUS_LABELS = {
   pending: 'ממתין לתשלום',

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CheckCircle2, ExternalLink, Ticket, Users } from 'lucide-react'
+import { CalendarClock, CheckCircle2, ExternalLink, Lock, Ticket, User, Users } from 'lucide-react'
 import { fetchConfig, fetchSoldCount, fetchTiers, createOrder } from '../lib/api'
-import { TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone } from '../lib/format'
-import { priceFor, resolveActiveTier } from '../lib/tiers'
-import { Button, Card, ErrorBanner, Field, FullPageSpinner, inputClass } from '../components/ui'
+import {
+  GROUP_SOLD_OUT_NOTE, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone,
+} from '../lib/format'
+import { isTypeAvailable, priceFor, resolveActiveTier } from '../lib/tiers'
+import { Badge, Button, Card, ErrorBanner, Field, FullPageSpinner, Sky, inputClass } from '../components/ui'
+import EventHeader from '../components/EventHeader'
 
 /** 'before' | 'after' | 'closed' | 'open' */
 function salesState(config) {
@@ -16,13 +19,17 @@ function salesState(config) {
 
 function Notice({ icon: Icon, title, children }) {
   return (
-    <div className="min-h-screen grid place-items-center p-6">
-      <Card className="max-w-md text-center">
-        <Icon className="mx-auto mb-3 h-10 w-10 text-sky-400" />
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <div className="mt-2 text-sm leading-relaxed text-slate-300">{children}</div>
-      </Card>
-    </div>
+    <Sky>
+      <div className="grid min-h-screen place-items-center p-4 sm:p-6">
+        <Card className="max-w-md text-center">
+          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl border-2 border-brand-black bg-brand-yellow shadow-brutal-xs">
+            <Icon className="h-8 w-8 text-brand-black" />
+          </div>
+          <h1 className="text-2xl font-black">{title}</h1>
+          <div className="mt-2 text-sm font-bold leading-relaxed text-brand-black/70">{children}</div>
+        </Card>
+      </div>
+    </Sky>
   )
 }
 
@@ -55,6 +62,10 @@ export default function CustomerView() {
     () => resolveActiveTier(tiers, sold),
     [tiers, sold]
   )
+  // The last round sells singles only, so a stale "quad" selection falls back
+  // to a single rather than rendering a price the tier does not offer.
+  const selectedType = isTypeAvailable(tier, ticketType) ? ticketType : 'single'
+
   const remainingOverall = Math.max(totalCapacity - sold, 0)
 
   if (loading) return <FullPageSpinner />
@@ -92,9 +103,9 @@ export default function CustomerView() {
     return <Notice icon={Ticket} title="הכרטיסים אזלו">כל הכרטיסים נמכרו. תודה על ההיענות!</Notice>
   }
 
-  const meta = TICKET_TYPES[ticketType]
+  const meta = TICKET_TYPES[selectedType]
   const extraGuests = meta.count - 1
-  const pricing = priceFor(tier, ticketType)
+  const pricing = priceFor(tier, selectedType)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -111,7 +122,7 @@ export default function CustomerView() {
         { name: buyerName, phone: buyerPhone },
         ...names.map((name) => ({ name, phone: buyerPhone })),
       ]
-      const result = await createOrder({ buyerName, buyerPhone, ticketType, attendees })
+      const result = await createOrder({ buyerName, buyerPhone, ticketType: selectedType, attendees })
       setConfirmation({ ...result, buyerName })
     } catch (err) {
       setFormError(err.message)
@@ -121,178 +132,218 @@ export default function CustomerView() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
-      <header className="pt-4 text-center">
-        <h1 className="text-3xl font-black">{config.event_name}</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          מכירה פתוחה עד {formatDateTime(config.sales_end_at)}
-        </p>
-        <div className="mt-3 inline-flex flex-wrap items-center justify-center gap-2 text-xs">
-          <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 font-bold text-sky-300">
-            {tier.name}
-          </span>
-          <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-300">
-            נותרו {remainingInTier} מקומות במחיר הזה
-          </span>
-          <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-300">
-            {remainingOverall} מתוך {totalCapacity} כרטיסים פנויים
-          </span>
+    <Sky>
+      <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
+        <div className="pt-2">
+          <EventHeader />
         </div>
-      </header>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold text-slate-400">בחירת כרטיס</h2>
-        {TICKET_TYPE_LIST.map((option) => {
-          const optionPricing = priceFor(tier, option.key)
-          const selected = option.key === ticketType
-          return (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => setTicketType(option.key)}
-              className={`w-full rounded-2xl border p-4 text-right transition ${
-                selected
-                  ? 'border-sky-500 bg-sky-500/10 ring-2 ring-sky-500/30'
-                  : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 font-bold">
-                    <Users className="h-4 w-4 text-slate-400" />
-                    {option.label}
-                    <span className="text-xs font-normal text-slate-500">
-                      {option.count} {option.count === 1 ? 'כרטיס' : 'כרטיסים'}
-                    </span>
-                  </div>
-                  {optionPricing.discount > 0 && (
-                    <div className="mt-1 text-xs text-emerald-400">
-                      במקום {formatMoney(optionPricing.fullPrice)} · חיסכון של{' '}
-                      {formatMoney(optionPricing.discount)}
-                    </div>
-                  )}
-                  {option.count > 1 && (
-                    <div className="mt-0.5 text-xs text-slate-500">
-                      {formatMoney(optionPricing.perPerson)} לאדם
-                    </div>
-                  )}
-                </div>
-                <div className="shrink-0 text-2xl font-black">{formatMoney(optionPricing.total)}</div>
+        <section className="rounded-3xl border-[3px] border-brand-black bg-brand-lime p-4 shadow-brutal">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-widest text-brand-black/70">
+                הסבב שנמכר עכשיו
               </div>
-            </button>
-          )
-        })}
-      </section>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Card className="space-y-4">
-          <h2 className="text-sm font-bold text-slate-400">פרטי הרוכש</h2>
-          <Field label="שם מלא">
-            <input
-              className={inputClass}
-              value={buyerName}
-              onChange={(event) => setBuyerName(event.target.value)}
-              placeholder="ישראל ישראלי"
-              autoComplete="name"
-            />
-          </Field>
-          <Field label="טלפון" hint="לצורך זיהוי בכניסה ועדכונים על האירוע">
-            <input
-              className={inputClass}
-              type="tel"
-              value={buyerPhone}
-              onChange={(event) => setBuyerPhone(event.target.value)}
-              placeholder="050-0000000"
-              autoComplete="tel"
-            />
-          </Field>
-        </Card>
-
-        {extraGuests > 0 && (
-          <Card className="space-y-4">
-            <h2 className="text-sm font-bold text-slate-400">
-              שמות המשתתפים הנוספים ({extraGuests})
-            </h2>
-            {Array.from({ length: extraGuests }, (_, index) => (
-              <Field key={index} label={`משתתף ${index + 2}`}>
-                <input
-                  className={inputClass}
-                  value={guests[index]}
-                  onChange={(event) => {
-                    const next = [...guests]
-                    next[index] = event.target.value
-                    setGuests(next)
-                  }}
-                  placeholder="שם מלא"
-                />
-              </Field>
-            ))}
-            <p className="text-xs text-slate-500">
-              מספר הטלפון של הרוכש ישויך לכל המשתתפים בהזמנה.
-            </p>
-          </Card>
-        )}
-
-        <ErrorBanner error={formError} />
-
-        <div className="sticky bottom-0 -mx-4 border-t border-slate-800 bg-slate-950/95 p-4 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border">
-          <div className="mb-3 flex items-center justify-between text-sm">
-            <span className="text-slate-400">
-              {meta.label} · {meta.count} {meta.count === 1 ? 'כרטיס' : 'כרטיסים'}
-            </span>
-            <span className="text-xl font-black">{formatMoney(pricing.total)}</span>
+              <div className="text-2xl font-black leading-tight">{tier.name}</div>
+            </div>
+            <Badge tone="black">נותרו {remainingInTier} מקומות במחיר הזה</Badge>
           </div>
-          <Button type="submit" busy={submitting} className="w-full py-4 text-base">
-            <Ticket className="h-5 w-5" />
-            המשך לתשלום
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge tone="white">{remainingOverall} מתוך {totalCapacity} כרטיסים פנויים</Badge>
+            <Badge tone="white">מכירה עד {formatDateTime(config.sales_end_at)}</Badge>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-lg font-black">בחירת כרטיס</h2>
+          {TICKET_TYPE_LIST.map((option) => (
+            <TicketOption
+              key={option.key}
+              option={option}
+              pricing={priceFor(tier, option.key)}
+              selected={option.key === selectedType}
+              disabled={!isTypeAvailable(tier, option.key)}
+              onSelect={() => setTicketType(option.key)}
+            />
+          ))}
+        </section>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Card className="space-y-4">
+            <h2 className="flex items-center gap-2 text-lg font-black">
+              <User className="h-5 w-5" />
+              פרטי הרוכש
+            </h2>
+            <Field label="שם מלא">
+              <input
+                className={inputClass}
+                value={buyerName}
+                onChange={(event) => setBuyerName(event.target.value)}
+                placeholder="ישראל ישראלי"
+                autoComplete="name"
+              />
+            </Field>
+            <Field label="טלפון" hint="לצורך זיהוי בכניסה ועדכונים על האירוע">
+              <input
+                className={inputClass}
+                type="tel"
+                value={buyerPhone}
+                onChange={(event) => setBuyerPhone(event.target.value)}
+                placeholder="050-0000000"
+                autoComplete="tel"
+              />
+            </Field>
+          </Card>
+
+          {extraGuests > 0 && (
+            <Card className="space-y-4">
+              <h2 className="flex items-center gap-2 text-lg font-black">
+                <Users className="h-5 w-5" />
+                שמות המשתתפים הנוספים ({extraGuests})
+              </h2>
+              {Array.from({ length: extraGuests }, (_, index) => (
+                <Field key={index} label={`משתתף ${index + 2}`}>
+                  <input
+                    className={inputClass}
+                    value={guests[index]}
+                    onChange={(event) => {
+                      const next = [...guests]
+                      next[index] = event.target.value
+                      setGuests(next)
+                    }}
+                    placeholder="שם מלא"
+                  />
+                </Field>
+              ))}
+              <p className="text-xs font-bold text-brand-black/60">
+                מספר הטלפון של הרוכש ישויך לכל המשתתפים בהזמנה.
+              </p>
+            </Card>
+          )}
+
+          <ErrorBanner error={formError} />
+
+          <div className="sticky bottom-0 -mx-4 border-t-[3px] border-brand-black bg-brand-white p-4 sm:mx-0 sm:rounded-3xl sm:border-[3px] sm:shadow-brutal">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-extrabold text-brand-black/70">
+                {meta.label} · {meta.count} {meta.count === 1 ? 'כרטיס' : 'כרטיסים'}
+              </span>
+              <span className="text-2xl font-black">{formatMoney(pricing.total)}</span>
+            </div>
+            <Button type="submit" busy={submitting} className="w-full py-4 text-lg">
+              <Ticket className="h-6 w-6" />
+              המשך לתשלום בפייבוקס
+            </Button>
+          </div>
+        </form>
+      </div>
+    </Sky>
+  )
+}
+
+function TicketOption({ option, pricing, selected, disabled, onSelect }) {
+  const isGroup = option.count > 1
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={`w-full rounded-3xl border-[3px] border-brand-black p-4 text-right shadow-brutal
+        transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-brutal-xs
+        disabled:cursor-not-allowed disabled:active:translate-x-0 disabled:active:translate-y-0
+        disabled:active:shadow-brutal ${
+          disabled ? 'bg-brand-white/60' : selected ? 'bg-brand-yellow' : 'bg-brand-white'
+        }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {isGroup ? <Users className="h-5 w-5" /> : <User className="h-5 w-5" />}
+            <span className="text-lg font-black">{option.label}</span>
+            <span className="text-sm font-bold text-brand-black/60">
+              {option.count} {option.count === 1 ? 'כרטיס' : 'כרטיסים'}
+            </span>
+          </div>
+
+          {disabled ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl border-2 border-brand-black bg-brand-coral px-3 py-1 text-xs font-extrabold text-brand-white">
+              <Lock className="h-3.5 w-3.5" />
+              {GROUP_SOLD_OUT_NOTE}
+            </div>
+          ) : (
+            <>
+              {pricing.discount > 0 && (
+                <div className="mt-2">
+                  <Badge tone="lime">חיסכון של {formatMoney(pricing.discount)}!</Badge>
+                </div>
+              )}
+              {isGroup && (
+                <div className="mt-2 text-sm font-bold text-brand-black/60">
+                  {formatMoney(pricing.perPerson)} לאדם · במקום {formatMoney(pricing.fullPrice)}
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </form>
-    </div>
+
+        {!disabled && (
+          <div className="shrink-0 text-3xl font-black">{formatMoney(pricing.total)}</div>
+        )}
+      </div>
+    </button>
   )
 }
 
 function Confirmation({ confirmation, payboxUrl }) {
   const { order, tier } = confirmation
   return (
-    <div className="mx-auto max-w-lg space-y-5 p-4 sm:p-6">
-      <Card className="mt-8 space-y-4 text-center">
-        <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-400" />
-        <h1 className="text-2xl font-black">ההרשמה נקלטה!</h1>
-        <p className="text-sm leading-relaxed text-slate-300">
-          לחץ על הכפתור כדי להעביר את התשלום בפייבוקס. הקפד לרשום את שמך המלא בהערת ההעברה.
-          הכרטיסים יאושרו סופית לאחר קליטת התשלום.
-        </p>
-
-        <div className="space-y-1 rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm">
-          <Row label="שם">{order.buyer_name}</Row>
-          <Row label="סוג כרטיס">{TICKET_TYPES[order.ticket_type].label}</Row>
-          <Row label="מספר כרטיסים">{order.tickets_count}</Row>
-          <Row label="מחיר">{tier.name}</Row>
-          <Row label="סכום להעברה">
-            <strong className="text-lg">{formatMoney(order.total_amount)}</strong>
-          </Row>
+    <Sky>
+      <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
+        <div className="pt-2">
+          <EventHeader compact />
         </div>
 
-        <a href={payboxUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <Button variant="success" className="w-full py-4 text-base" type="button">
-            <ExternalLink className="h-5 w-5" />
-            לתשלום בפייבוקס
-          </Button>
-        </a>
+        <Card className="space-y-4 text-center">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border-2 border-brand-black bg-brand-lime shadow-brutal-xs">
+            <CheckCircle2 className="h-9 w-9 text-brand-black" />
+          </div>
+          <h1 className="text-3xl font-black">ההרשמה נקלטה!</h1>
+          <p className="text-sm font-bold leading-relaxed text-brand-black/70">
+            לחצו על הכפתור כדי להעביר את התשלום בפייבוקס. הקפידו לרשום את השם המלא בהערת ההעברה.
+            הכרטיסים יאושרו סופית לאחר קליטת התשלום.
+          </p>
 
-        <p className="text-xs text-slate-500">
-          שמרו את המסך הזה. אם התשלום כבר בוצע - הכרטיסים יופיעו ברשימת הכניסה תוך זמן קצר.
-        </p>
-      </Card>
-    </div>
+          <div className="space-y-1 rounded-2xl border-[3px] border-brand-black bg-brand-yellow p-4 text-sm font-bold">
+            <Row label="שם">{order.buyer_name}</Row>
+            <Row label="סוג כרטיס">{TICKET_TYPES[order.ticket_type]?.label}</Row>
+            <Row label="מספר כרטיסים">{order.tickets_count}</Row>
+            <Row label="סבב">{tier.name}</Row>
+            <Row label="סכום להעברה">
+              <strong className="text-xl font-black">{formatMoney(order.total_amount)}</strong>
+            </Row>
+          </div>
+
+          <a href={payboxUrl} target="_blank" rel="noopener noreferrer" className="block">
+            <Button className="w-full py-4 text-lg" type="button">
+              <ExternalLink className="h-5 w-5" />
+              לתשלום בפייבוקס
+            </Button>
+          </a>
+
+          <p className="text-xs font-bold text-brand-black/60">
+            שמרו את המסך הזה. אם התשלום כבר בוצע - הכרטיסים יופיעו ברשימת הכניסה תוך זמן קצר.
+          </p>
+        </Card>
+      </div>
+    </Sky>
   )
 }
 
 function Row({ label, children }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-slate-400">{label}</span>
+      <span className="text-brand-black/70">{label}</span>
       <span>{children}</span>
     </div>
   )
