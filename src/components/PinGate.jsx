@@ -29,7 +29,6 @@ export default function PinGate({ title, subtitle, checking, error, onSubmit }) 
 
           <input
             type="password"
-            inputMode="numeric"
             autoComplete="off"
             autoFocus
             value={pin}
