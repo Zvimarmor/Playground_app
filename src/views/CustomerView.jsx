@@ -411,6 +411,11 @@ function Confirmation({ confirmation, payboxUrl }) {
             </Row>
           </div>
 
+          <p className="rounded-xl border-2 border-black bg-brand-yellow p-3 text-center text-sm font-bold text-black shadow-[3px_3px_0px_#000]">
+            שימו לב: כדי שהכרטיס יאושר, חשוב להעביר בדיוק את הסכום שמופיע למעלה. העברות בסכום שונה לא
+            יאושרו וההזמנה תבוטל אוטומטית (וחבל לפספס את המקום ברחבה&nbsp;✨).
+          </p>
+
           <a href={payboxUrl} target="_blank" rel="noopener noreferrer" className="block">
             <Button className="w-full py-4 text-lg" type="button">
               <ExternalLink className="h-5 w-5" />
