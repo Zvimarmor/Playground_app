@@ -90,10 +90,10 @@ function StaffFooter() {
             </div>
             <div className="grid gap-2">
               <StaffLink to="/door" icon={DoorOpen}>
-                סדרנים בכניסה
+                הלפרים
               </StaffLink>
               <StaffLink to="/admin" icon={ShieldCheck}>
-                ניהול
+                מנהלים
               </StaffLink>
             </div>
           </div>
