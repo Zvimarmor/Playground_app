@@ -118,14 +118,15 @@ export default function CustomerView() {
 
     setSubmitting(true)
     try {
-      const attendees = [
-        { name: buyerName, phone: buyerPhone },
-        ...names.map((name) => ({ name, phone: buyerPhone })),
-      ]
-      const result = await createOrder({ buyerName, buyerPhone, ticketType: selectedType, attendees })
-      setConfirmation({ ...result, buyerName })
+      const result = await createOrder({ buyerName, buyerPhone, ticketType: selectedType, guestNames: names })
+      setConfirmation(result)
     } catch (err) {
       setFormError(err.message)
+      // Most failures mean the page is stale (tier moved on, seats ran out),
+      // so bring the round and price shown here up to date.
+      fetchSoldCount()
+        .then((latest) => setState((prev) => ({ ...prev, sold: latest })))
+        .catch(() => {})
     } finally {
       setSubmitting(false)
     }
@@ -296,7 +297,7 @@ function TicketOption({ option, pricing, selected, disabled, onSelect }) {
 }
 
 function Confirmation({ confirmation, payboxUrl }) {
-  const { order, tier } = confirmation
+  const { order, tierName } = confirmation
   return (
     <Sky>
       <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
@@ -318,7 +319,7 @@ function Confirmation({ confirmation, payboxUrl }) {
             <Row label="שם">{order.buyer_name}</Row>
             <Row label="סוג כרטיס">{TICKET_TYPES[order.ticket_type]?.label}</Row>
             <Row label="מספר כרטיסים">{order.tickets_count}</Row>
-            <Row label="סבב">{tier.name}</Row>
+            <Row label="סבב">{tierName}</Row>
             <Row label="סכום להעברה">
               <strong className="text-xl font-black">{formatMoney(order.total_amount)}</strong>
             </Row>

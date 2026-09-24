@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LogOut, RefreshCw, Search, Undo2, UserCheck } from 'lucide-react'
-import { fetchPaidTickets, setCheckIn } from '../lib/api'
-import { supabase } from '../lib/supabase'
+import { fetchPaidTickets, setCheckIn, subscribeToChanges } from '../lib/api'
 import { digitsOnly, formatTime } from '../lib/format'
 import { usePinGate } from '../hooks/usePinGate'
 import PinGate from '../components/PinGate'
@@ -21,10 +20,10 @@ export default function DoorView() {
       />
     )
   }
-  return <DoorList onLock={gate.lock} />
+  return <DoorList pin={gate.pin} onLock={gate.lock} onPinError={gate.handleError} />
 }
 
-function DoorList({ onLock }) {
+function DoorList({ pin, onLock, onPinError }) {
   const [tickets, setTickets] = useState(null)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
@@ -32,24 +31,17 @@ function DoorList({ onLock }) {
 
   const load = useCallback(async () => {
     try {
-      setTickets(await fetchPaidTickets())
+      setTickets(await fetchPaidTickets(pin))
       setError(null)
     } catch (err) {
-      setError(err)
+      if (!onPinError(err)) setError(err)
     }
-  }, [])
+  }, [pin, onPinError])
 
   useEffect(() => {
     load()
     // Another helper marking someone in should show up here immediately.
-    const channel = supabase
-      .channel('door-tickets')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, load)
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return subscribeToChanges(load)
   }, [load])
 
   const filtered = useMemo(() => {
@@ -82,9 +74,10 @@ function DoorList({ onLock }) {
       )
     )
     try {
-      const updated = await setCheckIn(ticket.id, next)
+      const updated = await setCheckIn(pin, ticket.id, next)
       setTickets((prev) => prev.map((item) => (item.id === ticket.id ? { ...item, ...updated } : item)))
     } catch (err) {
+      if (onPinError(err)) return
       setError(err)
       load()
     } finally {

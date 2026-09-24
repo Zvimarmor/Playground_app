@@ -3,9 +3,8 @@ import {
   BadgeCheck, Banknote, Download, Hourglass, LogOut, RefreshCw, Ticket, UserPlus, XCircle,
 } from 'lucide-react'
 import {
-  createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus,
+  createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus, subscribeToChanges,
 } from '../lib/api'
-import { supabase } from '../lib/supabase'
 import {
   GROUP_SOLD_OUT_NOTE, STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES,
   formatDateTime, formatMoney, isValidPhone,
@@ -17,7 +16,7 @@ import PinGate from '../components/PinGate'
 import ContactPicker from '../components/ContactPicker'
 import EventHeader from '../components/EventHeader'
 import {
-  Badge, Button, Card, ErrorBanner, Field, FullPageSpinner, Sky, StatusPill, inputClass,
+  Badge, Button, Card, ConfirmDialog, ErrorBanner, Field, FullPageSpinner, Sky, StatusPill, inputClass,
 } from '../components/ui'
 
 export default function AdminView() {
@@ -34,38 +33,32 @@ export default function AdminView() {
       />
     )
   }
-  return <Dashboard onLock={gate.lock} />
+  return <Dashboard pin={gate.pin} onLock={gate.lock} onPinError={gate.handleError} />
 }
 
-function Dashboard({ onLock }) {
+function Dashboard({ pin, onLock, onPinError }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [busyOrderId, setBusyOrderId] = useState(null)
+  const [cancelTarget, setCancelTarget] = useState(null)
 
   const load = useCallback(async () => {
     try {
       const [config, tiers, orders] = await Promise.all([
         fetchConfig(),
         fetchTiers(),
-        fetchOrdersWithTickets(),
+        fetchOrdersWithTickets(pin),
       ])
       setData({ config, tiers, orders })
       setError(null)
     } catch (err) {
-      setError(err)
+      if (!onPinError(err)) setError(err)
     }
-  }, [])
+  }, [pin, onPinError])
 
   useEffect(() => {
     load()
-    const channel = supabase
-      .channel('admin-feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, load)
-      .subscribe()
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return subscribeToChanges(load)
   }, [load])
 
   const metrics = useMemo(() => {
@@ -102,13 +95,18 @@ function Dashboard({ onLock }) {
   const updateStatus = async (orderId, status) => {
     setBusyOrderId(orderId)
     try {
-      await setOrderStatus(orderId, status)
+      await setOrderStatus(pin, orderId, status)
       await load()
     } catch (err) {
-      setError(err)
+      if (!onPinError(err)) setError(err)
     } finally {
       setBusyOrderId(null)
     }
+  }
+
+  const confirmCancel = async () => {
+    await updateStatus(cancelTarget.id, 'cancelled')
+    setCancelTarget(null)
   }
 
   const exportCsv = () => {
@@ -188,13 +186,38 @@ function Dashboard({ onLock }) {
           orders={metrics.pendingOrders}
           busyOrderId={busyOrderId}
           onApprove={(id) => updateStatus(id, 'paid')}
-          onCancel={(id) => updateStatus(id, 'cancelled')}
+          onCancel={setCancelTarget}
         />
 
-        <ManualEntry tiers={data.tiers} sold={metrics.sold} onCreated={load} />
+        <ManualEntry
+          pin={pin}
+          tiers={data.tiers}
+          sold={metrics.sold}
+          onCreated={load}
+          onPinError={onPinError}
+        />
 
         <AllOrders orders={data.orders} />
       </div>
+
+      <ConfirmDialog
+        open={Boolean(cancelTarget)}
+        title="לבטל את ההזמנה?"
+        confirmLabel="כן, בטל הזמנה"
+        busy={Boolean(cancelTarget) && busyOrderId === cancelTarget.id}
+        onConfirm={confirmCancel}
+        onCancel={() => setCancelTarget(null)}
+      >
+        {cancelTarget && (
+          <>
+            ההזמנה של <strong className="text-brand-black">{cancelTarget.buyer_name}</strong> (
+            {cancelTarget.tickets_count} {cancelTarget.tickets_count === 1 ? 'כרטיס' : 'כרטיסים'},{' '}
+            {formatMoney(cancelTarget.total_amount)}) תבוטל והמקומות יחזרו למכירה.
+            <br />
+            אי אפשר לשחזר הזמנה שבוטלה.
+          </>
+        )}
+      </ConfirmDialog>
     </Sky>
   )
 }
@@ -259,7 +282,7 @@ function PendingApprovals({ orders, busyOrderId, onApprove, onCancel }) {
               <Button
                 variant="danger"
                 busy={busyOrderId === order.id}
-                onClick={() => onCancel(order.id)}
+                onClick={() => onCancel(order)}
               >
                 <XCircle className="h-4 w-4" />
                 בטל הזמנה
@@ -272,9 +295,10 @@ function PendingApprovals({ orders, busyOrderId, onApprove, onCancel }) {
   )
 }
 
-function ManualEntry({ tiers, sold, onCreated }) {
+function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [guests, setGuests] = useState(['', '', ''])
   const [ticketType, setTicketType] = useState('single')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -284,6 +308,7 @@ function ManualEntry({ tiers, sold, onCreated }) {
   // Same rule as the storefront: a tier without a group price cannot sell one.
   const selectedType = isTypeAvailable(tier, ticketType) ? ticketType : 'single'
   const pricing = tier ? priceFor(tier, selectedType) : null
+  const extraGuests = TICKET_TYPES[selectedType].count - 1
 
   const submit = async (event) => {
     event.preventDefault()
@@ -291,28 +316,20 @@ function ManualEntry({ tiers, sold, onCreated }) {
     setDone(null)
     if (name.trim().length < 2) return setError('נא למלא שם מלא')
     if (!isValidPhone(phone)) return setError('נא למלא מספר טלפון תקין')
+    const guestNames = guests.slice(0, extraGuests).map((guest) => guest.trim())
+    if (guestNames.some((guest) => guest.length < 2)) return setError('נא למלא את שמות כל המשתתפים')
 
     setBusy(true)
     try {
-      const count = TICKET_TYPES[selectedType].count
-      const attendees = Array.from({ length: count }, (_, index) => ({
-        name: index === 0 ? name : `${name} (${index + 1})`,
-        phone,
-      }))
-      await createOrder({
-        buyerName: name,
-        buyerPhone: phone,
-        ticketType: selectedType,
-        attendees,
-        status: 'paid',
-      })
-      setDone(`${name} נוסף/ה לרשימה`)
+      await createOrder({ buyerName: name, buyerPhone: phone, ticketType: selectedType, guestNames, pin })
+      setDone(extraGuests > 0 ? `${name} ועוד ${extraGuests} נוספו לרשימה` : `${name} נוסף/ה לרשימה`)
       setName('')
       setPhone('')
+      setGuests(['', '', ''])
       setTicketType('single')
       await onCreated()
     } catch (err) {
-      setError(err.message)
+      if (!onPinError(err)) setError(err.message)
     } finally {
       setBusy(false)
     }
@@ -375,6 +392,25 @@ function ManualEntry({ tiers, sold, onCreated }) {
               <p className="mt-2 text-xs font-extrabold text-brand-coral">{GROUP_SOLD_OUT_NOTE}</p>
             )}
           </Field>
+
+          {extraGuests > 0 && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {Array.from({ length: extraGuests }, (_, index) => (
+                <Field key={index} label={`משתתף ${index + 2}`}>
+                  <input
+                    className={inputClass}
+                    value={guests[index]}
+                    onChange={(event) => {
+                      const next = [...guests]
+                      next[index] = event.target.value
+                      setGuests(next)
+                    }}
+                    placeholder="שם מלא"
+                  />
+                </Field>
+              ))}
+            </div>
+          )}
 
           {pricing && (
             <p className="text-xs font-bold text-brand-black/60">

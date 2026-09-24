@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 
 export function Spinner({ className = 'h-6 w-6' }) {
@@ -151,6 +152,53 @@ export function Button({ variant = 'primary', className = '', busy = false, chil
       {busy && <Spinner className="h-4 w-4" />}
       {children}
     </button>
+  )
+}
+
+/**
+ * Modal yes/no for destructive actions. Focus starts on the safe choice, and
+ * Escape or a tap on the backdrop backs out - except while `busy`, so the
+ * dialog stays up until the action it started has finished.
+ */
+export function ConfirmDialog({
+  open, title, children, confirmLabel, cancelLabel = 'חזרה', busy = false, onConfirm, onCancel,
+}) {
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape' && !busy) onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, busy, onCancel])
+
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-brand-black/60 p-4"
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-sm space-y-4 rounded-3xl border-[3px] border-brand-black bg-brand-white p-6 shadow-brutal-lg"
+      >
+        <h2 id="confirm-dialog-title" className="text-xl font-black">
+          {title}
+        </h2>
+        <div className="text-sm font-bold leading-relaxed text-brand-black/70">{children}</div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="danger" busy={busy} onClick={onConfirm} className="flex-1">
+            {confirmLabel}
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={onCancel} className="flex-1" autoFocus>
+            {cancelLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
