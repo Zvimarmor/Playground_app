@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, CheckCircle2, ExternalLink, Lock, Ticket, User, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  CalendarClock, CheckCircle2, DoorOpen, ExternalLink, Lock, ShieldCheck, Ticket, User, Users, X,
+} from 'lucide-react'
 import { fetchConfig, fetchSoldCount, fetchTiers, createOrder } from '../lib/api'
 import {
   GROUP_SOLD_OUT_NOTE, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone,
@@ -20,16 +23,97 @@ function salesState(config) {
 function Notice({ icon: Icon, title, children }) {
   return (
     <Sky>
-      <div className="grid min-h-screen place-items-center p-4 sm:p-6">
-        <Card className="max-w-md text-center">
-          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl border-2 border-brand-black bg-brand-yellow shadow-brutal-xs">
-            <Icon className="h-8 w-8 text-brand-black" />
-          </div>
-          <h1 className="text-2xl font-black">{title}</h1>
-          <div className="mt-2 text-sm font-bold leading-relaxed text-brand-black/70">{children}</div>
-        </Card>
+      <div className="flex min-h-screen flex-col p-4 sm:p-6">
+        <div className="grid flex-1 place-items-center">
+          <Card className="max-w-md text-center">
+            <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl border-2 border-brand-black bg-brand-yellow shadow-brutal-xs">
+              <Icon className="h-8 w-8 text-brand-black" />
+            </div>
+            <h1 className="text-2xl font-black">{title}</h1>
+            <div className="mt-2 text-sm font-bold leading-relaxed text-brand-black/70">{children}</div>
+          </Card>
+        </div>
+        <StaffFooter />
       </div>
     </Sky>
+  )
+}
+
+/**
+ * A quiet way in for the door team and the admin, kept faint so buyers read
+ * past it. The staff pages still ask for their PIN - this only saves typing
+ * the address.
+ */
+function StaffFooter() {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <footer className="pt-10 text-center">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-brand-black/30
+          transition hover:text-brand-black/60 focus-visible:text-brand-black/60"
+      >
+        <Lock className="h-3 w-3" />
+        צוות
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-brand-black/60 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="staff-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-xs space-y-4 rounded-3xl border-[3px] border-brand-black bg-brand-white p-5 text-right shadow-brutal-lg"
+          >
+            <div className="flex items-center justify-between">
+              <h2 id="staff-dialog-title" className="text-lg font-black">
+                כניסת צוות
+              </h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label="סגירה" className="p-1" autoFocus>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="grid gap-2">
+              <StaffLink to="/door" icon={DoorOpen}>
+                סדרנים בכניסה
+              </StaffLink>
+              <StaffLink to="/admin" icon={ShieldCheck}>
+                ניהול
+              </StaffLink>
+            </div>
+          </div>
+        </div>
+      )}
+    </footer>
+  )
+}
+
+function StaffLink({ to, icon: Icon, children }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-2 rounded-2xl border-2 border-brand-black bg-brand-white px-4 py-3
+        text-sm font-extrabold shadow-brutal-sm transition-all hover:bg-brand-yellow
+        active:translate-x-[2px] active:translate-y-[2px] active:shadow-brutal-xs"
+    >
+      <Icon className="h-5 w-5" />
+      {children}
+    </Link>
   )
 }
 
@@ -237,6 +321,8 @@ export default function CustomerView() {
             </Button>
           </div>
         </form>
+
+        <StaffFooter />
       </div>
     </Sky>
   )
