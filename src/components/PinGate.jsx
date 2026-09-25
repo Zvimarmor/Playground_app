@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { KeyRound } from 'lucide-react'
+import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { Button, ErrorBanner, Sky, inputClass } from './ui'
 
 export default function PinGate({ title, subtitle, checking, error, onSubmit }) {
   const [pin, setPin] = useState('')
+  const [revealed, setRevealed] = useState(false)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -27,15 +28,31 @@ export default function PinGate({ title, subtitle, checking, error, onSubmit }) 
             {subtitle && <p className="mt-1 text-sm font-bold text-brand-black/60">{subtitle}</p>}
           </div>
 
-          <input
-            type="password"
-            autoComplete="off"
-            autoFocus
-            value={pin}
-            onChange={(event) => setPin(event.target.value)}
-            placeholder="••••"
-            className={`${inputClass} text-center text-3xl tracking-[0.5em]`}
-          />
+          <div className="relative">
+            <input
+              type={revealed ? 'text' : 'password'}
+              inputMode="text"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck="false"
+              dir="ltr"
+              autoFocus
+              value={pin}
+              onChange={(event) => setPin(event.target.value)}
+              placeholder="קוד גישה"
+              aria-label="קוד גישה"
+              className={`${inputClass} px-12 text-center text-xl tracking-wider`}
+            />
+            <button
+              type="button"
+              onClick={() => setRevealed((value) => !value)}
+              aria-label={revealed ? 'הסתרת הקוד' : 'הצגת הקוד'}
+              className="absolute inset-y-0 right-3 grid place-items-center px-1 text-brand-black/60 hover:text-brand-black"
+            >
+              {revealed ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
+          </div>
 
           <ErrorBanner error={error} />
 
