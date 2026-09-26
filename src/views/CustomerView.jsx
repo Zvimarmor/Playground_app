@@ -410,6 +410,10 @@ function Confirmation({ confirmation, payboxUrl, onBack }) {
               עכשיו נשאר רק לשלם&nbsp;😊
             </span>
           </h1>
+          <p className="text-sm font-bold leading-relaxed text-brand-black/70">
+            הקפידו לרשום את השם המלא בהערת ההעברה.
+            הכרטיסים יאושרו סופית לאחר קליטת התשלום.
+          </p>
 
           <div className="space-y-1 rounded-2xl border-[3px] border-brand-black bg-brand-yellow p-4 text-sm font-bold">
             <Row label="שם">{order.buyer_name}</Row>
