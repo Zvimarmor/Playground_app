@@ -436,10 +436,6 @@ function Confirmation({ confirmation, payboxUrl, onBack }) {
               לתשלום בפייבוקס
             </Button>
           </a>
-
-          <p className="text-xs font-bold text-brand-black/60">
-            שמרו את המסך הזה. אם התשלום כבר בוצע - הכרטיסים יופיעו ברשימת הכניסה תוך זמן קצר.
-          </p>
         </Card>
       </div>
     </Sky>
