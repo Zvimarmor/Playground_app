@@ -174,7 +174,11 @@ export default function CustomerView() {
   }
 
   if (confirmation) {
-    return <Confirmation confirmation={confirmation} payboxUrl={config.paybox_url} onBack={startOver} />
+    const payboxUrl =
+      confirmation.order.ticket_type === 'quad'
+        ? config.paybox_group_url || config.paybox_url
+        : config.paybox_url
+    return <Confirmation confirmation={confirmation} payboxUrl={payboxUrl} onBack={startOver} />
   }
 
   const status = salesState(config)

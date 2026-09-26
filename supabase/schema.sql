@@ -20,6 +20,10 @@ create table if not exists public.events_config (
   created_at    timestamptz not null default now()
 );
 
+-- Group orders pay into their own PayBox group so a 4-person signup is not
+-- paid as a single; null falls back to paybox_url.
+alter table public.events_config add column if not exists paybox_group_url text;
+
 -- price_quad is nullable on purpose: a null means "no group ticket in this
 -- tier" (the last round sells singles only).
 create table if not exists public.tiers (
@@ -96,7 +100,7 @@ alter table public.tiers   alter column price_quad drop not null;
 
 drop view if exists public.events_config_public;
 create view public.events_config_public as
-  select id, event_name, sales_start_at, sales_end_at, is_active, paybox_url, created_at
+  select id, event_name, sales_start_at, sales_end_at, is_active, paybox_url, paybox_group_url, created_at
   from public.events_config;
 
 -- ---------- access model ---------------------------------------------

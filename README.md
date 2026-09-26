@@ -35,7 +35,8 @@ update public.events_config set
   event_name    = 'שם האירוע',
   sales_start_at = '2026-10-01 10:00+03',
   sales_end_at   = '2026-10-20 23:59+03',
-  paybox_url     = 'https://payboxapp.page.link/...',
+  paybox_url     = 'https://payboxapp.page.link/...',       -- קבוצת פייבוקס לכרטיסים יחידים
+  paybox_group_url = 'https://payboxapp.page.link/...',     -- קבוצת פייבוקס לכרטיסים קבוצתיים
   helper_pin     = '<קוד סדרן, 6 ספרות ומעלה>',
   admin_pin      = '<קוד מנהל, 8 ספרות ומעלה>';
 ```
