@@ -2,7 +2,7 @@
 
 אפליקציית SPA (Vite + React + Tailwind v4 + Supabase), מלאה בעברית עם תמיכת RTL.
 
-**האירוע:** 23.10.26 · 11:00-16:30 · מוסללה רופטופ (Muslala Rooftop) · KIMIDA • HUNA • FREYA • GUYJI
+**האירוע:** 23.10.26 · 11:00-16:30 · מוסללה רופטופ (Muslala Rooftop) · KIMIDA • HUNA • SURPRISE GUEST • GUYJI
 
 ## מסכים
 

@@ -142,7 +142,7 @@ export default function CustomerView() {
   }, [])
 
   const { config, tiers, sold, loading, error } = state
-  const { tier, remainingInTier, totalCapacity } = useMemo(
+  const { tier, totalCapacity } = useMemo(
     () => resolveActiveTier(tiers, sold),
     [tiers, sold]
   )
@@ -231,11 +231,10 @@ export default function CustomerView() {
               </div>
               <div className="text-2xl font-black leading-tight">{tier.name}</div>
             </div>
-            <Badge tone="black">נותרו {remainingInTier} מקומות במחיר הזה</Badge>
+            <Badge tone="black">מכירה עד {formatDateTime(config.sales_end_at)}</Badge>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge tone="white">{remainingOverall} מתוך {totalCapacity} כרטיסים פנויים</Badge>
-            <Badge tone="white">מכירה עד {formatDateTime(config.sales_end_at)}</Badge>
           </div>
         </section>
 
