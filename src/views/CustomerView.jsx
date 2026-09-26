@@ -8,7 +8,7 @@ import {
   GROUP_SOLD_OUT_NOTE, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone,
 } from '../lib/format'
 import { isTypeAvailable, priceFor, resolveActiveTier } from '../lib/tiers'
-import { Badge, Button, Card, ErrorBanner, Field, FullPageSpinner, Sky, inputClass } from '../components/ui'
+import { BackButton, Badge, Button, Card, ErrorBanner, Field, FullPageSpinner, Sky, inputClass } from '../components/ui'
 import EventHeader from '../components/EventHeader'
 
 /** 'before' | 'after' | 'closed' | 'open' */
@@ -141,6 +141,20 @@ export default function CustomerView() {
     }
   }, [])
 
+  // Back from the confirmation to a blank form, with the sold count refreshed
+  // so the round and price reflect the order that was just placed.
+  const startOver = () => {
+    setConfirmation(null)
+    setTicketType('single')
+    setBuyerName('')
+    setBuyerPhone('')
+    setGuests(['', '', ''])
+    window.scrollTo(0, 0)
+    fetchSoldCount()
+      .then((latest) => setState((prev) => ({ ...prev, sold: latest })))
+      .catch(() => {})
+  }
+
   const { config, tiers, sold, loading, error } = state
   const { tier, totalCapacity } = useMemo(
     () => resolveActiveTier(tiers, sold),
@@ -162,7 +176,7 @@ export default function CustomerView() {
   }
 
   if (confirmation) {
-    return <Confirmation confirmation={confirmation} payboxUrl={config.paybox_url} />
+    return <Confirmation confirmation={confirmation} payboxUrl={config.paybox_url} onBack={startOver} />
   }
 
   const status = salesState(config)
@@ -381,12 +395,13 @@ function TicketOption({ option, pricing, selected, disabled, onSelect }) {
   )
 }
 
-function Confirmation({ confirmation, payboxUrl }) {
+function Confirmation({ confirmation, payboxUrl, onBack }) {
   const { order, tierName } = confirmation
   return (
     <Sky>
       <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
-        <div className="pt-2">
+        <BackButton onClick={onBack} />
+        <div>
           <EventHeader compact />
         </div>
 

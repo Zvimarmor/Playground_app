@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowRight, Loader2 } from 'lucide-react'
 
 export function Spinner({ className = 'h-6 w-6' }) {
   return <Loader2 className={`animate-spin ${className}`} />
@@ -151,6 +152,29 @@ export function Button({ variant = 'primary', className = '', busy = false, chil
     >
       {busy && <Spinner className="h-4 w-4" />}
       {children}
+    </button>
+  )
+}
+
+/**
+ * "Back to the main page" pill. Pass `to` to navigate, or `onClick` when going
+ * back only means resetting state on the current page.
+ */
+export function BackButton({ to, onClick, className = '' }) {
+  const classes = `${BUTTON_BASE} bg-brand-white px-3 py-2 text-brand-black ${className}`
+  const content = (
+    <>
+      <ArrowRight className="h-4 w-4" />
+      חזרה לדף הראשי
+    </>
+  )
+  return to ? (
+    <Link to={to} className={classes}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={classes}>
+      {content}
     </button>
   )
 }

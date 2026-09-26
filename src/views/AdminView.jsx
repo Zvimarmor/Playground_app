@@ -16,7 +16,7 @@ import PinGate from '../components/PinGate'
 import ContactPicker from '../components/ContactPicker'
 import EventHeader from '../components/EventHeader'
 import {
-  Badge, Button, Card, ConfirmDialog, ErrorBanner, Field, FullPageSpinner, Sky, StatusPill, inputClass,
+  BackButton, Badge, Button, Card, ConfirmDialog, ErrorBanner, Field, FullPageSpinner, Sky, StatusPill, inputClass,
 } from '../components/ui'
 
 export default function AdminView() {
@@ -129,7 +129,8 @@ function Dashboard({ pin, onLock, onPinError }) {
   return (
     <Sky>
       <div className="mx-auto max-w-4xl space-y-6 p-4 pb-16 sm:p-6">
-        <div className="pt-2">
+        <BackButton to="/" />
+        <div>
           <EventHeader compact />
         </div>
 

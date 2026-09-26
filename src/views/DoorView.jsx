@@ -4,7 +4,7 @@ import { fetchPaidTickets, setCheckIn, subscribeToChanges } from '../lib/api'
 import { digitsOnly, formatTime } from '../lib/format'
 import { usePinGate } from '../hooks/usePinGate'
 import PinGate from '../components/PinGate'
-import { Badge, Button, ErrorBanner, FullPageSpinner, Sky, inputClass } from '../components/ui'
+import { BackButton, Badge, Button, ErrorBanner, FullPageSpinner, Sky, inputClass } from '../components/ui'
 
 export default function DoorView() {
   const gate = usePinGate('helper')
@@ -92,6 +92,7 @@ function DoorList({ pin, onLock, onPinError }) {
   return (
     <Sky>
       <div className="mx-auto max-w-xl p-4 pb-20 sm:p-6">
+        <BackButton to="/" className="mb-4" />
         {/* Sunlight-legible: solid white bar, thick black rules, no translucency. */}
         <header className="sticky top-0 z-10 -mx-4 space-y-3 border-b-[3px] border-brand-black bg-brand-white px-4 pb-4 pt-4 sm:mx-0 sm:rounded-3xl sm:border-[3px] sm:px-5 sm:shadow-brutal">
           <div className="flex items-center justify-between gap-3">
