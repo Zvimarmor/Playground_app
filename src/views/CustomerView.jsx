@@ -156,15 +156,13 @@ export default function CustomerView() {
   }
 
   const { config, tiers, sold, loading, error } = state
-  const { tier, totalCapacity } = useMemo(
+  const { tier } = useMemo(
     () => resolveActiveTier(tiers, sold),
     [tiers, sold]
   )
   // The last round sells singles only, so a stale "quad" selection falls back
   // to a single rather than rendering a price the tier does not offer.
   const selectedType = isTypeAvailable(tier, ticketType) ? ticketType : 'single'
-
-  const remainingOverall = Math.max(totalCapacity - sold, 0)
 
   if (loading) return <FullPageSpinner />
   if (error) {
@@ -246,9 +244,6 @@ export default function CustomerView() {
               <div className="text-2xl font-black leading-tight">{tier.name}</div>
             </div>
             <Badge tone="black">מכירה עד {formatDateTime(config.sales_end_at)}</Badge>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Badge tone="white">{remainingOverall} מתוך {totalCapacity} כרטיסים פנויים</Badge>
           </div>
         </section>
 
@@ -409,11 +404,12 @@ function Confirmation({ confirmation, payboxUrl, onBack }) {
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border-2 border-brand-black bg-brand-lime shadow-brutal-xs">
             <CheckCircle2 className="h-9 w-9 text-brand-black" />
           </div>
-          <h1 className="text-3xl font-black">ההרשמה נקלטה!</h1>
-          <p className="text-sm font-bold leading-relaxed text-brand-black/70">
-            לחצו על הכפתור כדי להעביר את התשלום בפייבוקס. הקפידו לרשום את השם המלא בהערת ההעברה.
-            הכרטיסים יאושרו סופית לאחר קליטת התשלום.
-          </p>
+          <h1 className="text-3xl font-black leading-tight">
+            ההרשמה נקלטה!
+            <span className="mt-2 block text-2xl">
+              עכשיו נשאר רק לשלם&nbsp;😊
+            </span>
+          </h1>
 
           <div className="space-y-1 rounded-2xl border-[3px] border-brand-black bg-brand-yellow p-4 text-sm font-bold">
             <Row label="שם">{order.buyer_name}</Row>
