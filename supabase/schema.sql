@@ -192,13 +192,21 @@ $$;
 -- Pricing rule: a group ticket is priced entirely at the active tier even if
 -- that tier has fewer seats left than the group size (the count overflows
 -- into the next tier). The event-wide capacity is a hard cap, though.
+--
+-- p_guest_phones lines up with p_guest_names; a blank or missing entry means
+-- that guest gets the buyer's phone.
+drop function if exists public._create_order(text, text, text, text[], text, text);
+drop function if exists public.create_order(text, text, text, text[]);
+drop function if exists public.admin_create_order(text, text, text, text, text[]);
+
 create or replace function public._create_order(
-  p_buyer_name  text,
-  p_buyer_phone text,
-  p_ticket_type text,
-  p_guest_names text[],
-  p_status      text,
-  p_source      text
+  p_buyer_name   text,
+  p_buyer_phone  text,
+  p_ticket_type  text,
+  p_guest_names  text[],
+  p_guest_phones text[],
+  p_status       text,
+  p_source       text
 )
 returns jsonb
 language plpgsql
@@ -209,6 +217,7 @@ declare
   v_name   text   := btrim(coalesce(p_buyer_name, ''));
   v_phone  text   := btrim(coalesce(p_buyer_phone, ''));
   v_guests text[] := coalesce(p_guest_names, '{}');
+  v_phones text[] := coalesce(p_guest_phones, '{}');
   v_count  int;
   v_guest  text;
   v_cfg    public.events_config;
@@ -236,6 +245,16 @@ begin
   foreach v_guest in array v_guests loop
     if char_length(btrim(coalesce(v_guest, ''))) not between 2 and 80 then
       raise exception 'נא למלא את שמות כל המשתתפים';
+    end if;
+  end loop;
+  if coalesce(array_length(v_phones, 1), 0) > v_count - 1 then
+    raise exception 'מספר טלפון של משתתף אינו תקין';
+  end if;
+  foreach v_guest in array v_phones loop
+    if btrim(coalesce(v_guest, '')) <> ''
+       and (char_length(btrim(v_guest)) > 30
+            or char_length(regexp_replace(v_guest, '\D', '', 'g')) not between 9 and 15) then
+      raise exception 'מספר טלפון של משתתף אינו תקין';
     end if;
   end loop;
 
@@ -285,8 +304,9 @@ begin
   returning * into v_order;
 
   -- Buyer first. clock_timestamp() keeps that order when sorting by created_at.
+  -- v_phones[0] is null, so the buyer's own row always takes v_phone.
   insert into public.tickets (order_id, attendee_name, phone, created_at)
-  select v_order.id, btrim(u.name), v_phone, clock_timestamp()
+  select v_order.id, btrim(u.name), coalesce(nullif(btrim(v_phones[u.pos - 1]), ''), v_phone), clock_timestamp()
   from unnest(array[v_name] || v_guests) with ordinality as u(name, pos)
   order by u.pos;
 
@@ -295,10 +315,11 @@ end;
 $$;
 
 create or replace function public.create_order(
-  p_buyer_name  text,
-  p_buyer_phone text,
-  p_ticket_type text,
-  p_guest_names text[] default '{}'
+  p_buyer_name   text,
+  p_buyer_phone  text,
+  p_ticket_type  text,
+  p_guest_names  text[] default '{}',
+  p_guest_phones text[] default '{}'
 )
 returns jsonb
 language plpgsql
@@ -306,18 +327,19 @@ security definer
 set search_path = public
 as $$
 begin
-  return public._create_order(p_buyer_name, p_buyer_phone, p_ticket_type, p_guest_names, 'pending', 'public');
+  return public._create_order(p_buyer_name, p_buyer_phone, p_ticket_type, p_guest_names, p_guest_phones, 'pending', 'public');
 end;
 $$;
 
 -- ---------- admin ------------------------------------------------------
 
 create or replace function public.admin_create_order(
-  p_pin         text,
-  p_buyer_name  text,
-  p_buyer_phone text,
-  p_ticket_type text,
-  p_guest_names text[] default '{}'
+  p_pin          text,
+  p_buyer_name   text,
+  p_buyer_phone  text,
+  p_ticket_type  text,
+  p_guest_names  text[] default '{}',
+  p_guest_phones text[] default '{}'
 )
 returns jsonb
 language plpgsql
@@ -326,7 +348,7 @@ set search_path = public
 as $$
 begin
   perform public._require_pin(p_pin, 'admin');
-  return public._create_order(p_buyer_name, p_buyer_phone, p_ticket_type, p_guest_names, 'paid', 'manual');
+  return public._create_order(p_buyer_name, p_buyer_phone, p_ticket_type, p_guest_names, p_guest_phones, 'paid', 'manual');
 end;
 $$;
 
@@ -445,12 +467,12 @@ $$;
 -- anon/authenticated on top, so the internal helpers are revoked explicitly.
 
 revoke all on function public._require_pin(text, text)                           from public, anon, authenticated;
-revoke all on function public._create_order(text, text, text, text[], text, text) from public, anon, authenticated;
+revoke all on function public._create_order(text, text, text, text[], text[], text, text) from public, anon, authenticated;
 
 grant execute on function public.verify_pin(text)                                 to anon, authenticated;
 grant execute on function public.sold_count()                                     to anon, authenticated;
-grant execute on function public.create_order(text, text, text, text[])           to anon, authenticated;
-grant execute on function public.admin_create_order(text, text, text, text, text[]) to anon, authenticated;
+grant execute on function public.create_order(text, text, text, text[], text[])           to anon, authenticated;
+grant execute on function public.admin_create_order(text, text, text, text, text[], text[]) to anon, authenticated;
 grant execute on function public.admin_orders(text)                               to anon, authenticated;
 grant execute on function public.set_order_status(text, uuid, text)               to anon, authenticated;
 grant execute on function public.door_tickets(text)                               to anon, authenticated;

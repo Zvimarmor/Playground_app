@@ -48,18 +48,20 @@ export const setCheckIn = async (pin, ticketId, checkedIn) =>
 
 /**
  * Creates an order plus one ticket row per attendee (the buyer first, then
- * `guestNames`). The database picks the tier and the price under a row lock,
+ * `guestNames`). `guestPhones` lines up with `guestNames`; a blank entry gives
+ * that guest the buyer's phone. The database picks the tier and the price under a row lock,
  * so the page's own price is only a preview - the returned order is what was
  * actually charged.
  *
  * With `pin` it is the admin's manual entry, created as already paid.
  */
-export async function createOrder({ buyerName, buyerPhone, ticketType, guestNames = [], pin }) {
+export async function createOrder({ buyerName, buyerPhone, ticketType, guestNames = [], guestPhones = [], pin }) {
   const args = {
     p_buyer_name: buyerName,
     p_buyer_phone: buyerPhone,
     p_ticket_type: ticketType,
     p_guest_names: guestNames,
+    p_guest_phones: guestPhones,
   }
   const { order, tier_name: tierName } = pin
     ? unwrap(await supabase.rpc('admin_create_order', { p_pin: pin, ...args }))

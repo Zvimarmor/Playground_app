@@ -123,6 +123,7 @@ export default function CustomerView() {
   const [buyerName, setBuyerName] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
   const [guests, setGuests] = useState(['', '', ''])
+  const [guestPhones, setGuestPhones] = useState(['', '', ''])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState(null)
   const [confirmation, setConfirmation] = useState(null)
@@ -149,6 +150,7 @@ export default function CustomerView() {
     setBuyerName('')
     setBuyerPhone('')
     setGuests(['', '', ''])
+    setGuestPhones(['', '', ''])
     window.scrollTo(0, 0)
     fetchSoldCount()
       .then((latest) => setState((prev) => ({ ...prev, sold: latest })))
@@ -215,10 +217,14 @@ export default function CustomerView() {
     if (!isValidPhone(buyerPhone)) return setFormError('נא למלא מספר טלפון תקין')
     const names = guests.slice(0, extraGuests).map((name) => name.trim())
     if (names.some((name) => name.length < 2)) return setFormError('נא למלא את שמות כל המשתתפים')
+    const phones = guestPhones.slice(0, extraGuests).map((phone) => phone.trim())
+    if (phones.some((phone) => phone && !isValidPhone(phone))) {
+      return setFormError('מספר טלפון של משתתף אינו תקין')
+    }
 
     setSubmitting(true)
     try {
-      const result = await createOrder({ buyerName, buyerPhone, ticketType: selectedType, guestNames: names })
+      const result = await createOrder({ buyerName, buyerPhone, ticketType: selectedType, guestNames: names, guestPhones: phones })
       setConfirmation(result)
     } catch (err) {
       setFormError(err.message)
@@ -296,24 +302,37 @@ export default function CustomerView() {
             <Card className="space-y-4">
               <h2 className="flex items-center gap-2 text-lg font-black">
                 <Users className="h-5 w-5" />
-                שמות המשתתפים הנוספים ({extraGuests})
+                המשתתפים הנוספים ({extraGuests})
               </h2>
               {Array.from({ length: extraGuests }, (_, index) => (
                 <Field key={index} label={`משתתף ${index + 2}`}>
-                  <input
-                    className={inputClass}
-                    value={guests[index]}
-                    onChange={(event) => {
-                      const next = [...guests]
-                      next[index] = event.target.value
-                      setGuests(next)
-                    }}
-                    placeholder="שם מלא"
-                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      className={inputClass}
+                      value={guests[index]}
+                      onChange={(event) => {
+                        const next = [...guests]
+                        next[index] = event.target.value
+                        setGuests(next)
+                      }}
+                      placeholder="שם מלא"
+                    />
+                    <input
+                      className={inputClass}
+                      type="tel"
+                      value={guestPhones[index]}
+                      onChange={(event) => {
+                        const next = [...guestPhones]
+                        next[index] = event.target.value
+                        setGuestPhones(next)
+                      }}
+                      placeholder="טלפון (לא חובה)"
+                    />
+                  </div>
                 </Field>
               ))}
               <p className="text-xs font-bold text-brand-black/60">
-                מספר הטלפון של הרוכש ישויך לכל המשתתפים בהזמנה.
+                בלי טלפון? ישויך מספר הרוכש.
               </p>
             </Card>
           )}
