@@ -40,6 +40,14 @@ export const formatDateTime = (iso) =>
 /** Normalises a phone number for comparison/search (digits only). */
 export const digitsOnly = (value) => (value || '').replace(/\D/g, '')
 
+/** wa.me link for a stored phone; local Israeli numbers (leading 0) get the 972 prefix. */
+export const whatsappUrl = (value) => {
+  let digits = digitsOnly(value)
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  else if (digits.startsWith('0')) digits = `972${digits.slice(1)}`
+  return digits ? `https://wa.me/${digits}` : null
+}
+
 export const isValidPhone = (value) => {
   const digits = digitsOnly(value)
   return digits.length >= 9 && digits.length <= 15
