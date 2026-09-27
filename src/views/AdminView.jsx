@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BadgeCheck, Banknote, Download, Hourglass, LogOut, RefreshCw, Ticket, UserPlus, XCircle,
+  BadgeCheck, Banknote, Download, Hourglass, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, XCircle,
 } from 'lucide-react'
 import {
   createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus, subscribeToChanges,
 } from '../lib/api'
 import {
   GROUP_SOLD_OUT_NOTE, STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES,
-  formatDateTime, formatMoney, isValidPhone,
+  formatDateTime, formatMoney, isValidPhone, whatsappUrl,
 } from '../lib/format'
 import { isTypeAvailable, priceFor, resolveActiveTier, totalCapacity } from '../lib/tiers'
 import { downloadCsv } from '../lib/csv'
@@ -456,11 +456,33 @@ function AllOrders({ orders }) {
           <tbody>
             {orders.map((order) => {
               const tickets = order.tickets ?? []
+              const chatUrl = whatsappUrl(order.buyer_phone)
               return (
                 <tr key={order.id} className="border-b-2 border-brand-black/15 last:border-0">
-                  <td className="p-3 font-extrabold">{order.buyer_name}</td>
+                  <td className="p-3 font-extrabold">
+                    {chatUrl ? (
+                      <a
+                        href={chatUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="פתח צ׳אט בוואטסאפ"
+                        className="inline-flex items-center gap-1.5 underline decoration-2 underline-offset-4 hover:text-[#128C7E]"
+                      >
+                        <MessageCircle className="h-4 w-4 shrink-0 text-[#25D366]" />
+                        {order.buyer_name}
+                      </a>
+                    ) : (
+                      order.buyer_name
+                    )}
+                  </td>
                   <td className="p-3 font-bold text-brand-black/60" dir="ltr">
-                    {order.buyer_phone}
+                    {chatUrl ? (
+                      <a href={chatUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {order.buyer_phone}
+                      </a>
+                    ) : (
+                      order.buyer_phone
+                    )}
                   </td>
                   <td className="p-3 font-bold text-brand-black/70">
                     {TICKET_TYPES[order.ticket_type]?.short ?? order.ticket_type} ({order.tickets_count})
