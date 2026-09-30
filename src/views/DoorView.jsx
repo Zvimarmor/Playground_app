@@ -159,8 +159,15 @@ function AttendeeCard({ ticket, busy, onToggle }) {
       }`}
     >
       <div className="min-w-0">
-        <div className={`truncate text-xl font-black ${isIn ? 'text-brand-black/50' : 'text-brand-black'}`}>
-          {ticket.attendee_name}
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={`truncate text-xl font-black ${isIn ? 'text-brand-black/50' : 'text-brand-black'}`}>
+            {ticket.attendee_name}
+          </div>
+          {ticket.order?.is_manual && (
+            <Badge tone="black" className="shrink-0 px-2 py-0.5">
+              הלפר / צוות
+            </Badge>
+          )}
         </div>
         <div className="mt-0.5 truncate text-sm font-bold text-brand-black/60">
           <span dir="ltr">{ticket.phone}</span>

@@ -50,6 +50,10 @@ create table if not exists public.orders (
   tier_name      text,
   source         text    not null default 'public' check (source in ('public','manual'))
 );
+-- Staff / helper tickets the admin adds by hand. They are free, get into
+-- /door like any paid ticket, and never count towards the public capacity.
+alter table public.orders add column if not exists is_manual boolean not null default false;
+
 create index if not exists orders_status_idx     on public.orders (payment_status);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
 
@@ -170,7 +174,8 @@ $$;
 
 -- ---------- storefront -------------------------------------------------
 
--- Tickets already committed - everything except cancelled orders.
+-- Public tickets already committed - everything except cancelled orders and
+-- the admin's staff/helper tickets, which sit outside the capacity.
 create or replace function public.sold_count()
 returns int
 language sql
@@ -180,7 +185,8 @@ set search_path = public
 as $$
   select coalesce(sum(tickets_count), 0)::int
   from public.orders
-  where payment_status <> 'cancelled';
+  where payment_status <> 'cancelled'
+    and not is_manual;
 $$;
 
 -- The one place an order is created, for both the storefront and the admin's
@@ -192,6 +198,9 @@ $$;
 -- Pricing rule: a group ticket is priced entirely at the active tier even if
 -- that tier has fewer seats left than the group size (the count overflows
 -- into the next tier). The event-wide capacity is a hard cap, though.
+--
+-- p_source = 'manual' is a staff/helper ticket: free, is_manual, no tier, and
+-- exempt from both the sales window and the capacity cap.
 --
 -- p_guest_phones lines up with p_guest_names; a blank or missing entry means
 -- that guest gets the buyer's phone.
@@ -273,34 +282,39 @@ begin
     raise exception 'המכירה אינה פתוחה כרגע';
   end if;
 
-  -- A fresh statement, so it sees every order committed before we got the lock.
-  select coalesce(sum(tickets_count), 0)::int into v_sold
-  from public.orders
-  where payment_status <> 'cancelled';
+  if p_source = 'manual' then
+    v_price := 0;
+  else
+    -- A fresh statement, so it sees every order committed before we got the lock.
+    select coalesce(sum(tickets_count), 0)::int into v_sold
+    from public.orders
+    where payment_status <> 'cancelled'
+      and not is_manual;
 
-  for v_row in select * from public.tiers order by sort_order loop
-    v_cum := v_cum + v_row.capacity;
-    if v_tier.id is null and v_sold < v_cum then
-      v_tier := v_row;
+    for v_row in select * from public.tiers order by sort_order loop
+      v_cum := v_cum + v_row.capacity;
+      if v_tier.id is null and v_sold < v_cum then
+        v_tier := v_row;
+      end if;
+    end loop;
+
+    if v_tier.id is null then
+      raise exception 'הכרטיסים אזלו';
     end if;
-  end loop;
+    if v_sold + v_count > v_cum then
+      raise exception 'נותרו רק % כרטיסים - בחרו כרטיס יחיד', v_cum - v_sold;
+    end if;
 
-  if v_tier.id is null then
-    raise exception 'הכרטיסים אזלו';
-  end if;
-  if v_sold + v_count > v_cum then
-    raise exception 'נותרו רק % כרטיסים - בחרו כרטיס יחיד', v_cum - v_sold;
-  end if;
-
-  v_price := case p_ticket_type when 'single' then v_tier.price_single else v_tier.price_quad end;
-  if v_price is null then
-    raise exception 'כרטיסים קבוצתיים אזלו לסבב זה';
+    v_price := case p_ticket_type when 'single' then v_tier.price_single else v_tier.price_quad end;
+    if v_price is null then
+      raise exception 'כרטיסים קבוצתיים אזלו לסבב זה';
+    end if;
   end if;
 
   insert into public.orders
-    (buyer_name, buyer_phone, ticket_type, tickets_count, total_amount, payment_status, tier_name, source)
+    (buyer_name, buyer_phone, ticket_type, tickets_count, total_amount, payment_status, tier_name, source, is_manual)
   values
-    (v_name, v_phone, p_ticket_type, v_count, v_price, p_status, v_tier.name, p_source)
+    (v_name, v_phone, p_ticket_type, v_count, v_price, p_status, v_tier.name, p_source, p_source = 'manual')
   returning * into v_order;
 
   -- Buyer first. clock_timestamp() keeps that order when sorting by created_at.
@@ -333,6 +347,7 @@ $$;
 
 -- ---------- admin ------------------------------------------------------
 
+-- Staff / helper tickets: created paid, free, and outside the public cap.
 create or replace function public.admin_create_order(
   p_pin          text,
   p_buyer_name   text,
@@ -376,6 +391,8 @@ begin
 end;
 $$;
 
+-- Any live order can be cancelled, paid ones included: its tickets drop off
+-- /door and, for a public order, its seats go back on sale.
 -- A cancelled order has given its seats back, so it cannot be revived here -
 -- that would bypass the capacity check in _create_order.
 create or replace function public.set_order_status(p_pin text, p_order_id uuid, p_status text)
@@ -424,7 +441,8 @@ begin
                'id', o.id,
                'buyer_name', o.buyer_name,
                'ticket_type', o.ticket_type,
-               'payment_status', o.payment_status
+               'payment_status', o.payment_status,
+               'is_manual', o.is_manual
              ))
              order by t.attendee_name
            ), '[]'::jsonb)

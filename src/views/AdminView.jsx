@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BadgeCheck, Banknote, Download, Hourglass, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, XCircle,
+  BadgeCheck, Banknote, Download, HardHat, Hourglass, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, Users,
+  XCircle,
 } from 'lucide-react'
 import {
   createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus, subscribeToChanges,
 } from '../lib/api'
 import {
-  GROUP_SOLD_OUT_NOTE, STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES,
-  formatDateTime, formatMoney, isValidPhone, whatsappUrl,
+  STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone, whatsappUrl,
 } from '../lib/format'
-import { isTypeAvailable, priceFor, resolveActiveTier, totalCapacity } from '../lib/tiers'
+import { resolveActiveTier, totalCapacity } from '../lib/tiers'
 import { downloadCsv } from '../lib/csv'
 import { usePinGate } from '../hooks/usePinGate'
 import PinGate from '../components/PinGate'
@@ -67,8 +67,14 @@ function Dashboard({ pin, onLock, onPinError }) {
     const paid = data.orders.filter((order) => order.payment_status === 'paid')
     const pending = data.orders.filter((order) => order.payment_status === 'pending')
     const paidTickets = paid.flatMap((order) => order.tickets ?? [])
+    const countTickets = (orders) => orders.reduce((sum, order) => sum + order.tickets_count, 0)
+    // Staff/helper tickets sit outside the public capacity, same as sold_count().
+    const sold = countTickets(live.filter((order) => !order.is_manual))
+    const manual = countTickets(live.filter((order) => order.is_manual))
     return {
-      sold: live.reduce((sum, order) => sum + order.tickets_count, 0),
+      sold,
+      manual,
+      total: sold + manual,
       capacity: totalCapacity(data.tiers),
       paidRevenue: paid.reduce((sum, order) => sum + Number(order.total_amount), 0),
       pendingRevenue: pending.reduce((sum, order) => sum + Number(order.total_amount), 0),
@@ -114,7 +120,7 @@ function Dashboard({ pin, onLock, onPinError }) {
       (order.tickets ?? []).map((ticket) => [
         ticket.attendee_name,
         ticket.phone ?? '',
-        TICKET_TYPES[order.ticket_type]?.label ?? order.ticket_type,
+        order.is_manual ? 'הלפר / ידני' : TICKET_TYPES[order.ticket_type]?.label ?? order.ticket_type,
         STATUS_LABELS[order.payment_status],
         ticket.is_checked_in ? `נכנס ב-${formatDateTime(ticket.checked_in_at)}` : 'לא נכנס',
       ])
@@ -165,7 +171,21 @@ function Dashboard({ pin, onLock, onPinError }) {
             icon={Ticket}
             label="כרטיסים שנמכרו"
             value={<span dir="ltr">{metrics.sold} / {metrics.capacity}</span>}
-            hint={`${Math.max(metrics.capacity - metrics.sold, 0)} מקומות פנויים`}
+            hint={`הזמנות ציבוריות פעילות · ${Math.max(metrics.capacity - metrics.sold, 0)} מקומות פנויים`}
+          />
+          <Metric
+            tone="white"
+            icon={HardHat}
+            label="כרטיסי הלפר / ידני"
+            value={metrics.manual}
+            hint={`לא נספרים ב-${metrics.capacity}`}
+          />
+          <Metric
+            tone="black"
+            icon={Users}
+            label="סה״כ מוזמנים ברחבה"
+            value={metrics.total}
+            hint={`${metrics.sold} ציבוריים + ${metrics.manual} הלפרים`}
           />
           <Metric
             tone="yellow"
@@ -190,20 +210,14 @@ function Dashboard({ pin, onLock, onPinError }) {
           onCancel={setCancelTarget}
         />
 
-        <ManualEntry
-          pin={pin}
-          tiers={data.tiers}
-          sold={metrics.sold}
-          onCreated={load}
-          onPinError={onPinError}
-        />
+        <ManualEntry pin={pin} onCreated={load} onPinError={onPinError} />
 
-        <AllOrders orders={data.orders} />
+        <AllOrders orders={data.orders} busyOrderId={busyOrderId} onCancel={setCancelTarget} />
       </div>
 
       <ConfirmDialog
         open={Boolean(cancelTarget)}
-        title="לבטל את ההזמנה?"
+        title={cancelTarget?.payment_status === 'paid' ? 'האם לבטל הזמנה ששולמה?' : 'לבטל את ההזמנה?'}
         confirmLabel="כן, בטל הזמנה"
         busy={Boolean(cancelTarget) && busyOrderId === cancelTarget.id}
         onConfirm={confirmCancel}
@@ -213,7 +227,14 @@ function Dashboard({ pin, onLock, onPinError }) {
           <>
             ההזמנה של <strong className="text-brand-black">{cancelTarget.buyer_name}</strong> (
             {cancelTarget.tickets_count} {cancelTarget.tickets_count === 1 ? 'כרטיס' : 'כרטיסים'},{' '}
-            {formatMoney(cancelTarget.total_amount)}) תבוטל והמקומות יחזרו למכירה.
+            {formatMoney(cancelTarget.total_amount)}) תבוטל
+            {cancelTarget.is_manual ? '.' : ' והמקומות יחזרו למכירה.'}
+            {cancelTarget.payment_status === 'paid' && (
+              <>
+                <br />
+                הכרטיסים יוסרו מרשימת הכניסה והספירה תתעדכן.
+              </>
+            )}
             <br />
             אי אפשר לשחזר הזמנה שבוטלה.
           </>
@@ -228,6 +249,8 @@ function Metric({ icon: Icon, label, value, hint, tone }) {
     lime: 'bg-brand-lime text-brand-black',
     yellow: 'bg-brand-yellow text-brand-black',
     coral: 'bg-brand-coral text-brand-white',
+    white: 'bg-brand-white text-brand-black',
+    black: 'bg-brand-black text-brand-white',
   }
   return (
     <div className={`rounded-3xl border-[3px] border-brand-black p-5 shadow-brutal ${tones[tone]}`}>
@@ -296,20 +319,18 @@ function PendingApprovals({ orders, busyOrderId, onApprove, onCancel }) {
   )
 }
 
-function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
+/** Staff / helper tickets: free, already paid, and outside the public capacity. */
+function ManualEntry({ pin, onCreated, onPinError }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [guests, setGuests] = useState(['', '', ''])
+  const [guestPhones, setGuestPhones] = useState(['', '', ''])
   const [ticketType, setTicketType] = useState('single')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [done, setDone] = useState(null)
 
-  const { tier } = resolveActiveTier(tiers, sold)
-  // Same rule as the storefront: a tier without a group price cannot sell one.
-  const selectedType = isTypeAvailable(tier, ticketType) ? ticketType : 'single'
-  const pricing = tier ? priceFor(tier, selectedType) : null
-  const extraGuests = TICKET_TYPES[selectedType].count - 1
+  const extraGuests = TICKET_TYPES[ticketType].count - 1
 
   const submit = async (event) => {
     event.preventDefault()
@@ -319,14 +340,19 @@ function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
     if (!isValidPhone(phone)) return setError('נא למלא מספר טלפון תקין')
     const guestNames = guests.slice(0, extraGuests).map((guest) => guest.trim())
     if (guestNames.some((guest) => guest.length < 2)) return setError('נא למלא את שמות כל המשתתפים')
+    const phones = guestPhones.slice(0, extraGuests).map((guestPhone) => guestPhone.trim())
+    if (phones.some((guestPhone) => guestPhone && !isValidPhone(guestPhone))) {
+      return setError('מספר טלפון של משתתף אינו תקין')
+    }
 
     setBusy(true)
     try {
-      await createOrder({ buyerName: name, buyerPhone: phone, ticketType: selectedType, guestNames, pin })
+      await createOrder({ buyerName: name, buyerPhone: phone, ticketType, guestNames, guestPhones: phones, pin })
       setDone(extraGuests > 0 ? `${name} ועוד ${extraGuests} נוספו לרשימה` : `${name} נוסף/ה לרשימה`)
       setName('')
       setPhone('')
       setGuests(['', '', ''])
+      setGuestPhones(['', '', ''])
       setTicketType('single')
       await onCreated()
     } catch (err) {
@@ -338,7 +364,7 @@ function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
 
   return (
     <section className="space-y-3">
-      <SectionTitle>הוספת משתתף ידנית (משולם)</SectionTitle>
+      <SectionTitle>כרטיסי צוות / הלפר (לא נספרים ב-160)</SectionTitle>
       <Card>
         <form onSubmit={submit} className="space-y-4">
           <ContactPicker
@@ -370,55 +396,59 @@ function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
 
           <Field label="סוג כרטיס">
             <div className="flex flex-wrap gap-2">
-              {TICKET_TYPE_LIST.map((option) => {
-                const available = isTypeAvailable(tier, option.key)
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    disabled={!available}
-                    onClick={() => setTicketType(option.key)}
-                    className={`rounded-2xl border-2 border-brand-black px-4 py-2.5 text-sm font-extrabold
-                      shadow-brutal-xs transition-all active:translate-x-[2px] active:translate-y-[2px]
-                      disabled:cursor-not-allowed disabled:opacity-40 ${
-                        selectedType === option.key ? 'bg-brand-yellow' : 'bg-brand-white'
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
+              {TICKET_TYPE_LIST.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setTicketType(option.key)}
+                  className={`rounded-2xl border-2 border-brand-black px-4 py-2.5 text-sm font-extrabold
+                    shadow-brutal-xs transition-all active:translate-x-[2px] active:translate-y-[2px] ${
+                      ticketType === option.key ? 'bg-brand-yellow' : 'bg-brand-white'
+                    }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
-            {tier && !isTypeAvailable(tier, 'quad') && (
-              <p className="mt-2 text-xs font-extrabold text-brand-coral">{GROUP_SOLD_OUT_NOTE}</p>
-            )}
           </Field>
 
           {extraGuests > 0 && (
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-4">
               {Array.from({ length: extraGuests }, (_, index) => (
                 <Field key={index} label={`משתתף ${index + 2}`}>
-                  <input
-                    className={inputClass}
-                    value={guests[index]}
-                    onChange={(event) => {
-                      const next = [...guests]
-                      next[index] = event.target.value
-                      setGuests(next)
-                    }}
-                    placeholder="שם מלא"
-                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      className={inputClass}
+                      value={guests[index]}
+                      onChange={(event) => {
+                        const next = [...guests]
+                        next[index] = event.target.value
+                        setGuests(next)
+                      }}
+                      placeholder="שם מלא"
+                    />
+                    <input
+                      className={inputClass}
+                      type="tel"
+                      value={guestPhones[index]}
+                      onChange={(event) => {
+                        const next = [...guestPhones]
+                        next[index] = event.target.value
+                        setGuestPhones(next)
+                      }}
+                      placeholder="טלפון (לא חובה)"
+                    />
+                  </div>
                 </Field>
               ))}
+              <p className="text-xs font-bold text-brand-black/60">בלי טלפון? ישויך מספר הרוכש.</p>
             </div>
           )}
 
-          {pricing && (
-            <p className="text-xs font-bold text-brand-black/60">
-              ייווצרו {TICKET_TYPES[selectedType].count} כרטיסים בסכום {formatMoney(pricing.total)} לפי{' '}
-              {tier.name}, בסטטוס "שולם".
-            </p>
-          )}
+          <p className="text-xs font-bold text-brand-black/60">
+            ייווצרו {TICKET_TYPES[ticketType].count} כרטיסי הלפר ללא עלות, בסטטוס "שולם". הם יופיעו ברשימת
+            הכניסה ולא ייספרו במכסת הכרטיסים הציבורית.
+          </p>
 
           <ErrorBanner error={error} onDismiss={() => setError(null)} />
           {done && (
@@ -427,7 +457,7 @@ function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
             </p>
           )}
 
-          <Button type="submit" busy={busy} disabled={!tier}>
+          <Button type="submit" busy={busy}>
             <UserPlus className="h-4 w-4" />
             הוסף לרשימה
           </Button>
@@ -437,7 +467,7 @@ function ManualEntry({ pin, tiers, sold, onCreated, onPinError }) {
   )
 }
 
-function AllOrders({ orders }) {
+function AllOrders({ orders, busyOrderId, onCancel }) {
   return (
     <section className="space-y-3">
       <SectionTitle>כל ההזמנות ({orders.length})</SectionTitle>
@@ -451,6 +481,7 @@ function AllOrders({ orders }) {
               <th className="p-3">סכום</th>
               <th className="p-3">סטטוס</th>
               <th className="p-3">נכנסו</th>
+              <th className="p-3" aria-label="פעולות" />
             </tr>
           </thead>
           <tbody>
@@ -474,6 +505,11 @@ function AllOrders({ orders }) {
                     ) : (
                       order.buyer_name
                     )}
+                    {order.is_manual && (
+                      <Badge tone="black" className="ms-2 whitespace-nowrap px-2 py-0.5">
+                        הלפר / ידני
+                      </Badge>
+                    )}
                   </td>
                   <td className="p-3 font-bold text-brand-black/60" dir="ltr">
                     {chatUrl ? (
@@ -493,6 +529,19 @@ function AllOrders({ orders }) {
                   </td>
                   <td className="p-3 font-bold text-brand-black/70" dir="ltr">
                     {tickets.filter((ticket) => ticket.is_checked_in).length} / {tickets.length}
+                  </td>
+                  <td className="p-3">
+                    {order.payment_status === 'paid' && (
+                      <Button
+                        variant="danger"
+                        busy={busyOrderId === order.id}
+                        onClick={() => onCancel(order)}
+                        className="whitespace-nowrap px-3 py-2 text-xs"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        בטל הזמנה
+                      </Button>
+                    )}
                   </td>
                 </tr>
               )

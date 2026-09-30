@@ -21,7 +21,7 @@ export const fetchConfig = async () =>
 export const fetchTiers = async () =>
   unwrap(await supabase.from('tiers').select('*').order('sort_order', { ascending: true }))
 
-/** Tickets already committed - everything except cancelled orders. */
+/** Public tickets already committed - excludes cancelled orders and staff/helper tickets. */
 export const fetchSoldCount = async () => unwrap(await supabase.rpc('sold_count'))
 
 export const verifyPin = async (pin) => unwrap(await supabase.rpc('verify_pin', { p_pin: pin })) // 'admin' | 'helper' | null
@@ -53,7 +53,8 @@ export const setCheckIn = async (pin, ticketId, checkedIn) =>
  * so the page's own price is only a preview - the returned order is what was
  * actually charged.
  *
- * With `pin` it is the admin's manual entry, created as already paid.
+ * With `pin` it is the admin's staff/helper entry: free, already paid, flagged
+ * `is_manual`, and outside the public capacity.
  */
 export async function createOrder({ buyerName, buyerPhone, ticketType, guestNames = [], guestPhones = [], pin }) {
   const args = {
