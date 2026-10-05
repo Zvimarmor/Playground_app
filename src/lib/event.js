@@ -9,5 +9,5 @@ export const EVENT = {
   time: '11:00-16:30',
   venue: 'מוסללה רופטופ',
   venueEn: 'Muslala Rooftop',
-  lineup: ['KIMIDA', 'HUNA', 'SURPRISE GUEST', 'GUYJI'],
+  lineup: ['KIMIDA', 'HUNA', 'SHA NI', 'TY DE LA LUNA', 'GUYJI'],
 }
