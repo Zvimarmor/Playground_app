@@ -44,7 +44,6 @@ export default function EventHeader({ compact = false }) {
         </div>
       ) : (
         <>
-          <p className="mt-4 text-center text-base font-extrabold leading-snug sm:text-lg">{EVENT.tagline}</p>
           <EventFacts />
           <Vibe />
           <Lineup />
@@ -66,7 +65,7 @@ function EventFacts() {
       </div>
 
       <div className="grid gap-2.5 sm:grid-cols-2">
-        <FactChip emoji="🍃" title={EVENT.venue} note={EVENT.venueNote} />
+        <FactChip emoji="🍃" title={EVENT.venue} />
         <FactChip
           emoji="🗓️"
           title={`${EVENT.day}, ${EVENT.date}`}
@@ -88,7 +87,7 @@ function FactChip({ emoji, title, note, className = 'bg-brand-white' }) {
       </span>
       <div className="min-w-0">
         <div className="text-sm font-black leading-tight sm:text-base">{title}</div>
-        <div className="text-xs font-bold text-brand-black/70">{note}</div>
+        {note && <div className="text-xs font-bold text-brand-black/70">{note}</div>}
       </div>
     </div>
   )

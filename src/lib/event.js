@@ -6,13 +6,11 @@
 export const EVENT = {
   title: 'PLAYGROUND',
   emoji: '🛝',
-  tagline: 'מסיבת טבע צבעונית שמגיעה אל תוך העיר 🌅',
   day: 'שישי',
   date: '23.10',
   time: '11:00 - 16:30',
   venue: 'המרפסת של מוסללה',
-  venueNote: 'על הגג הכי ירוק בירושלים',
-  vibe: ['בייס', 'אלקטרוני', 'טראנס', 'עולם', 'וכל מה שטוב'],
+  vibe: ['בייס', 'אלקטרוני', 'טראנס', 'עולם'],
   whatsappUrl: 'https://chat.whatsapp.com/DH741rXpzd1Fccjbw7v6p5?s=cl&p=i&mlu=4',
   // `names` holds more than one artist for a back-to-back set.
   lineup: [
