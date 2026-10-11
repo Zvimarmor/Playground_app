@@ -113,42 +113,22 @@ function Vibe() {
 
 function Lineup() {
   return (
-    <div className="mt-5 rounded-2xl border-2 border-brand-black bg-brand-black p-3 shadow-brutal-xs">
-      <p className="mb-3 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-lime" dir="ltr">
+    <div className="mt-4 rounded-2xl border-2 border-brand-black bg-brand-black p-2.5 shadow-brutal-xs">
+      <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-lime" dir="ltr">
         LINEUP
       </p>
-      {/* Two cards per row; a back-to-back set takes a full row of its own. */}
-      <ul dir="ltr" className="flex flex-wrap gap-2">
+      {/* One compact chip per act so names wrap as whole units, never mid-name. */}
+      <ul dir="ltr" className="flex flex-wrap justify-center gap-1.5">
         {EVENT.lineup.map((act, i) => (
           <li
             key={act.names.join('-')}
-            className={`flex grow flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-brand-black
-              px-3 py-2.5 text-center shadow-[2px_2px_0_var(--color-brand-lime)]
-              ${act.names.length > 1 ? 'basis-full' : 'basis-[calc(50%-0.25rem)]'}
+            className={`rounded-lg border-2 border-brand-black px-2.5 py-1 text-center leading-tight
               ${LINEUP_TONES[i % LINEUP_TONES.length]}`}
           >
-            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-base font-black leading-tight md:text-lg">
-              {act.names.map((name, j) => (
-                <span key={name} className="flex items-center gap-2">
-                  {j > 0 && (
-                    <span className="rounded-md bg-brand-black px-1.5 py-0.5 text-[0.65rem] font-extrabold text-brand-white">
-                      B2B
-                    </span>
-                  )}
-                  <span className="whitespace-nowrap">{name}</span>
-                </span>
-              ))}
+            <div className="whitespace-nowrap text-sm font-black">
+              {act.names.join(' B2B ')}
             </div>
-            <div className="flex flex-wrap justify-center gap-1">
-              {act.genres.map((genre) => (
-                <span
-                  key={genre}
-                  className="rounded-md border border-black/30 bg-white/70 px-2 py-0.5 text-xs font-bold text-black/75"
-                >
-                  {genre}
-                </span>
-              ))}
-            </div>
+            <div className="text-[0.65rem] font-bold opacity-70">{act.genres.join(' • ')}</div>
           </li>
         ))}
       </ul>
