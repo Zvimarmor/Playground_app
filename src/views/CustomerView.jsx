@@ -246,23 +246,6 @@ export default function CustomerView() {
           <EventHeader />
         </div>
 
-        <a
-          href={EVENT.whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-3xl border-[3px] border-brand-black bg-brand-whatsapp p-4
-            text-brand-black shadow-brutal transition-all hover:bg-brand-lime
-            active:translate-x-[2px] active:translate-y-[2px] active:shadow-brutal-xs"
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border-2 border-brand-black bg-brand-white shadow-brutal-xs">
-            <MessageCircle className="h-6 w-6" />
-          </span>
-          <span className="min-w-0 flex-1 text-base font-black leading-snug">
-            להצטרפות לקבוצת הוואטסאפ של הפלייגראונד 💬
-          </span>
-          <ExternalLink className="h-5 w-5 shrink-0" />
-        </a>
-
         <section className="rounded-3xl border-[3px] border-brand-black bg-brand-lime p-4 shadow-brutal">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -371,6 +354,8 @@ export default function CustomerView() {
           </div>
         </form>
 
+        <WhatsAppLink>להצטרפות לקבוצת הוואטסאפ של הפלייגראונד 💬</WhatsAppLink>
+
         <StaffFooter />
       </div>
     </Sky>
@@ -478,8 +463,29 @@ function Confirmation({ confirmation, payboxUrl, onBack }) {
             </Button>
           </a>
         </Card>
+
+        <WhatsAppLink>עדיין לא בקבוצת הוואטסאפ? מוזמנים להצטרף! 💬</WhatsAppLink>
       </div>
     </Sky>
+  )
+}
+
+function WhatsAppLink({ children }) {
+  return (
+    <a
+      href={EVENT.whatsappUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 rounded-3xl border-[3px] border-brand-black bg-brand-whatsapp p-4
+        text-brand-black shadow-brutal transition-all hover:bg-brand-lime
+        active:translate-x-[2px] active:translate-y-[2px] active:shadow-brutal-xs"
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border-2 border-brand-black bg-brand-white shadow-brutal-xs">
+        <MessageCircle className="h-6 w-6" />
+      </span>
+      <span className="min-w-0 flex-1 text-base font-black leading-snug">{children}</span>
+      <ExternalLink className="h-5 w-5 shrink-0" />
+    </a>
   )
 }
 
