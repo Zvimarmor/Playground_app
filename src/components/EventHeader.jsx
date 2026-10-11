@@ -10,8 +10,9 @@ const LINEUP_TONES = [
 ]
 
 /**
- * The poster, rebuilt in CSS: big retro wordmark, the three facts people need,
- * and the lineup teaser. `compact` drops the lineup for the staff views.
+ * The poster, rebuilt in CSS: big retro wordmark, the facts people need, the
+ * vibe and the lineup. `compact` keeps just the wordmark and the three facts
+ * for the staff views and the confirmation screen.
  */
 export default function EventHeader({ compact = false }) {
   return (
@@ -19,53 +20,138 @@ export default function EventHeader({ compact = false }) {
       <h1
         className="text-center font-display text-[clamp(2rem,13.5cqi,4.5rem)] font-black uppercase
           leading-[0.85] tracking-tight text-brand-black"
-        style={{ WebkitTextStroke: '0px', textShadow: '4px 4px 0 var(--color-brand-lime)' }}
+        style={{ textShadow: '4px 4px 0 var(--color-brand-lime)' }}
         dir="ltr"
       >
         {EVENT.title}
+        {!compact && <span className="ms-2 inline-block [text-shadow:none]">{EVENT.emoji}</span>}
       </h1>
 
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        <Badge tone="coral">
-          <CalendarDays className="h-4 w-4" />
-          <span dir="ltr">{EVENT.date}</span>
-        </Badge>
-        <Badge tone="yellow">
-          <Clock className="h-4 w-4" />
-          <span dir="ltr">{EVENT.time}</span>
-        </Badge>
-        <Badge tone="lime">
-          <MapPin className="h-4 w-4" />
-          {EVENT.venue}
-        </Badge>
-      </div>
-
-      {!compact && (
-        <div className="mt-4 rounded-2xl border-2 border-brand-black bg-brand-black p-3 shadow-brutal-xs">
-          <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-lime" dir="ltr">
-            LINEUP
-          </p>
-          {/* One pill per artist so names wrap as whole units, never mid-name. */}
-          <ul dir="ltr" className="flex flex-wrap justify-center gap-2">
-            {EVENT.lineup.map((artist, i) => (
-              <li
-                key={artist}
-                className={`whitespace-nowrap rounded-xl border-2 border-brand-black px-3 py-1 text-xs
-                  font-black tracking-wider shadow-[2px_2px_0_var(--color-brand-lime)] sm:text-sm
-                  ${LINEUP_TONES[i % LINEUP_TONES.length]}`}
-              >
-                {artist}
-              </li>
-            ))}
-          </ul>
+      {compact ? (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <Badge tone="coral">
+            <CalendarDays className="h-4 w-4" />
+            <span dir="ltr">{EVENT.date}</span>
+          </Badge>
+          <Badge tone="yellow">
+            <Clock className="h-4 w-4" />
+            <span dir="ltr">{EVENT.time}</span>
+          </Badge>
+          <Badge tone="lime">
+            <MapPin className="h-4 w-4" />
+            {EVENT.venue}
+          </Badge>
         </div>
-      )}
-
-      {!compact && (
-        <p className="mt-3 text-center text-xs font-bold text-brand-black/60">
-          {EVENT.venueEn}
-        </p>
+      ) : (
+        <>
+          <p className="mt-4 text-center text-base font-extrabold leading-snug sm:text-lg">{EVENT.tagline}</p>
+          <EventFacts />
+          <Vibe />
+          <Lineup />
+        </>
       )}
     </header>
+  )
+}
+
+function EventFacts() {
+  return (
+    <div className="mt-5 grid gap-2.5">
+      <div
+        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-brand-black bg-brand-lime
+          px-4 py-3 text-lg font-black shadow-brutal-sm sm:text-xl"
+      >
+        <span aria-hidden="true">🍺</span>
+        אלכוהול חופשי
+      </div>
+
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        <FactChip emoji="🍃" title={EVENT.venue} note={EVENT.venueNote} />
+        <FactChip
+          emoji="🗓️"
+          title={`${EVENT.day}, ${EVENT.date}`}
+          note={<span dir="ltr">{EVENT.time}</span>}
+          className="bg-brand-yellow"
+        />
+      </div>
+    </div>
+  )
+}
+
+function FactChip({ emoji, title, note, className = 'bg-brand-white' }) {
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border-2 border-brand-black px-3 py-2.5 shadow-brutal-xs ${className}`}
+    >
+      <span className="text-2xl" aria-hidden="true">
+        {emoji}
+      </span>
+      <div className="min-w-0">
+        <div className="text-sm font-black leading-tight sm:text-base">{title}</div>
+        <div className="text-xs font-bold text-brand-black/70">{note}</div>
+      </div>
+    </div>
+  )
+}
+
+function Vibe() {
+  return (
+    <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm font-extrabold">
+      {EVENT.vibe.map((genre, i) => (
+        <span key={genre} className="flex items-center gap-2">
+          {i > 0 && (
+            <span className="text-brand-coral" aria-hidden="true">
+              •
+            </span>
+          )}
+          {genre}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+function Lineup() {
+  return (
+    <div className="mt-5 rounded-2xl border-2 border-brand-black bg-brand-black p-3 shadow-brutal-xs">
+      <p className="mb-3 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-lime" dir="ltr">
+        LINEUP
+      </p>
+      {/* Two cards per row; a back-to-back set takes a full row of its own. */}
+      <ul dir="ltr" className="flex flex-wrap gap-2">
+        {EVENT.lineup.map((act, i) => (
+          <li
+            key={act.names.join('-')}
+            className={`flex grow flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-brand-black
+              px-3 py-2.5 text-center shadow-[2px_2px_0_var(--color-brand-lime)]
+              ${act.names.length > 1 ? 'basis-full' : 'basis-[calc(50%-0.25rem)]'}
+              ${LINEUP_TONES[i % LINEUP_TONES.length]}`}
+          >
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-base font-black leading-tight md:text-lg">
+              {act.names.map((name, j) => (
+                <span key={name} className="flex items-center gap-2">
+                  {j > 0 && (
+                    <span className="rounded-md bg-brand-black px-1.5 py-0.5 text-[0.65rem] font-extrabold text-brand-white">
+                      B2B
+                    </span>
+                  )}
+                  <span className="whitespace-nowrap">{name}</span>
+                </span>
+              ))}
+            </div>
+            <div className="flex flex-wrap justify-center gap-1">
+              {act.genres.map((genre) => (
+                <span
+                  key={genre}
+                  className="rounded-md border border-black/30 bg-white/70 px-2 py-0.5 text-xs font-bold text-black/75"
+                >
+                  {genre}
+                </span>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

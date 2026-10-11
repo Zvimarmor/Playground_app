@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  CalendarClock, CheckCircle2, DoorOpen, ExternalLink, Lock, ShieldCheck, Ticket, User, Users, X,
+  CalendarClock, CheckCircle2, DoorOpen, ExternalLink, Lock, MessageCircle, ShieldCheck, Ticket, User, Users, X,
 } from 'lucide-react'
 import { fetchConfig, fetchSoldCount, fetchTiers, createOrder } from '../lib/api'
 import {
@@ -10,6 +10,7 @@ import {
 import { isTypeAvailable, priceFor, resolveActiveTier } from '../lib/tiers'
 import { BackButton, Badge, Button, Card, ErrorBanner, Field, FullPageSpinner, Sky, inputClass } from '../components/ui'
 import EventHeader from '../components/EventHeader'
+import { EVENT } from '../lib/event'
 
 /** 'before' | 'after' | 'closed' | 'open' */
 function salesState(config) {
@@ -244,6 +245,23 @@ export default function CustomerView() {
         <div className="pt-2">
           <EventHeader />
         </div>
+
+        <a
+          href={EVENT.whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-3xl border-[3px] border-brand-black bg-brand-whatsapp p-4
+            text-brand-black shadow-brutal transition-all hover:bg-brand-lime
+            active:translate-x-[2px] active:translate-y-[2px] active:shadow-brutal-xs"
+        >
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border-2 border-brand-black bg-brand-white shadow-brutal-xs">
+            <MessageCircle className="h-6 w-6" />
+          </span>
+          <span className="min-w-0 flex-1 text-base font-black leading-snug">
+            להצטרפות לקבוצת הוואטסאפ של הפלייגראונד 💬
+          </span>
+          <ExternalLink className="h-5 w-5 shrink-0" />
+        </a>
 
         <section className="rounded-3xl border-[3px] border-brand-black bg-brand-lime p-4 shadow-brutal">
           <div className="flex flex-wrap items-center justify-between gap-2">
