@@ -2,6 +2,14 @@ import { CalendarDays, Clock, MapPin } from 'lucide-react'
 import { EVENT } from '../lib/event'
 import { Badge } from './ui'
 
+// The poster's pop colours, one per act, on the site's sky blue.
+const LINEUP_TONES = [
+  'bg-brand-lime text-brand-black',
+  'bg-brand-yellow text-brand-black',
+  'bg-brand-coral text-brand-white',
+  'bg-brand-white text-brand-black',
+]
+
 /**
  * The poster, rebuilt in CSS: big retro wordmark, the facts people need, the
  * vibe and the lineup. `compact` keeps just the wordmark and the three facts
@@ -105,22 +113,22 @@ function Vibe() {
 
 function Lineup() {
   return (
-    <div className="mt-4 rounded-2xl border-2 border-brand-black bg-linear-to-br from-brand-coral via-brand-yellow to-brand-lime p-2.5 shadow-brutal-xs">
-      <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-black" dir="ltr">
+    <div className="mt-4 rounded-2xl border-2 border-brand-black bg-brand-sky p-2.5 shadow-brutal-xs">
+      <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-white" dir="ltr">
         LINEUP
       </p>
       {/* One compact chip per act so names wrap as whole units, never mid-name. */}
       <ul dir="ltr" className="flex flex-wrap justify-center gap-1.5">
-        {EVENT.lineup.map((act) => (
+        {EVENT.lineup.map((act, i) => (
           <li
             key={act.names.join('-')}
-            className="rounded-lg border-2 border-brand-black bg-brand-white px-2.5 py-1 text-center leading-tight
-              text-brand-black shadow-brutal-xs"
+            className={`rounded-lg border-2 border-brand-black px-2.5 py-1 text-center leading-tight
+              shadow-brutal-xs ${LINEUP_TONES[i % LINEUP_TONES.length]}`}
           >
             <div className="whitespace-nowrap text-sm font-black">
               {act.names.join(' B2B ')}
             </div>
-            <div className="text-[0.65rem] font-bold opacity-70">{act.genres.join(' • ')}</div>
+            <div className="text-[0.65rem] font-bold opacity-85">{act.genres.join(' • ')}</div>
           </li>
         ))}
       </ul>
