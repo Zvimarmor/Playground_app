@@ -2,13 +2,6 @@ import { CalendarDays, Clock, MapPin } from 'lucide-react'
 import { EVENT } from '../lib/event'
 import { Badge } from './ui'
 
-const LINEUP_TONES = [
-  'bg-brand-lime text-brand-black',
-  'bg-brand-yellow text-brand-black',
-  'bg-brand-coral text-brand-white',
-  'bg-brand-white text-brand-black',
-]
-
 /**
  * The poster, rebuilt in CSS: big retro wordmark, the facts people need, the
  * vibe and the lineup. `compact` keeps just the wordmark and the three facts
@@ -80,7 +73,7 @@ function EventFacts() {
 function FactChip({ emoji, title, note, className = 'bg-brand-white' }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-2xl border-2 border-brand-black px-3 py-2.5 shadow-brutal-xs ${className}`}
+      className={`flex items-center justify-center gap-3 rounded-2xl border-2 border-brand-black px-3 py-2.5 text-center shadow-brutal-xs ${className}`}
     >
       <span className="text-2xl" aria-hidden="true">
         {emoji}
@@ -112,17 +105,17 @@ function Vibe() {
 
 function Lineup() {
   return (
-    <div className="mt-4 rounded-2xl border-2 border-brand-black bg-brand-black p-2.5 shadow-brutal-xs">
-      <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-lime" dir="ltr">
+    <div className="mt-4 rounded-2xl border-2 border-brand-black bg-linear-to-br from-brand-coral via-brand-yellow to-brand-lime p-2.5 shadow-brutal-xs">
+      <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-black" dir="ltr">
         LINEUP
       </p>
       {/* One compact chip per act so names wrap as whole units, never mid-name. */}
       <ul dir="ltr" className="flex flex-wrap justify-center gap-1.5">
-        {EVENT.lineup.map((act, i) => (
+        {EVENT.lineup.map((act) => (
           <li
             key={act.names.join('-')}
-            className={`rounded-lg border-2 border-brand-black px-2.5 py-1 text-center leading-tight
-              ${LINEUP_TONES[i % LINEUP_TONES.length]}`}
+            className="rounded-lg border-2 border-brand-black bg-brand-white px-2.5 py-1 text-center leading-tight
+              text-brand-black shadow-brutal-xs"
           >
             <div className="whitespace-nowrap text-sm font-black">
               {act.names.join(' B2B ')}
