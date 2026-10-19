@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BadgeCheck, Banknote, Download, HardHat, Hourglass, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, Users,
+  BadgeCheck, Banknote, Calculator, Download, HardHat, Hourglass, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, Users,
   XCircle,
 } from 'lucide-react'
 import {
   createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus, subscribeToChanges,
 } from '../lib/api'
 import {
-  STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, isValidPhone, whatsappUrl,
+  STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, formatMoneyPrecise, isValidPhone, whatsappUrl,
 } from '../lib/format'
 import { resolveActiveTier, totalCapacity } from '../lib/tiers'
 import { downloadCsv } from '../lib/csv'
@@ -71,12 +71,18 @@ function Dashboard({ pin, onLock, onPinError }) {
     // Staff/helper tickets sit outside the public capacity, same as sold_count().
     const sold = countTickets(live.filter((order) => !order.is_manual))
     const manual = countTickets(live.filter((order) => order.is_manual))
+    // Free helper tickets would drag the average down, so only paid public orders count.
+    const paidPublic = paid.filter((order) => !order.is_manual)
+    const paidPublicTickets = countTickets(paidPublic)
+    const paidPublicRevenue = paidPublic.reduce((sum, order) => sum + Number(order.total_amount), 0)
     return {
       sold,
       manual,
       total: sold + manual,
       capacity: totalCapacity(data.tiers),
       paidRevenue: paid.reduce((sum, order) => sum + Number(order.total_amount), 0),
+      paidPublicTickets,
+      averagePrice: paidPublicTickets > 0 ? paidPublicRevenue / paidPublicTickets : 0,
       pendingRevenue: pending.reduce((sum, order) => sum + Number(order.total_amount), 0),
       eligible: paidTickets.length,
       checkedIn: paidTickets.filter((ticket) => ticket.is_checked_in).length,
@@ -200,6 +206,13 @@ function Dashboard({ pin, onLock, onPinError }) {
             label="ממתינים לאישור תשלום"
             value={metrics.pendingOrders.length}
             hint={`${formatMoney(metrics.pendingRevenue)} ממתינים לאישור`}
+          />
+          <Metric
+            tone="lime"
+            icon={Calculator}
+            label="מחיר ממוצע לכרטיס"
+            value={formatMoneyPrecise(metrics.averagePrice)}
+            hint={`לפי ${metrics.paidPublicTickets} כרטיסים ששולמו, ללא הלפרים`}
           />
         </section>
 

@@ -22,6 +22,16 @@ const currency = new Intl.NumberFormat('he-IL', {
 
 export const formatMoney = (value) => currency.format(Number(value) || 0)
 
+// Same as formatMoney but keeps up to two decimals, for averages like ₪87.5.
+const preciseCurrency = new Intl.NumberFormat('he-IL', {
+  style: 'currency',
+  currency: 'ILS',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+})
+
+export const formatMoneyPrecise = (value) => preciseCurrency.format(Number(value) || 0)
+
 export const formatTime = (iso) =>
   iso
     ? new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
