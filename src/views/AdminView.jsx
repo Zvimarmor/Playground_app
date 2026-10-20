@@ -480,6 +480,33 @@ function ManualEntry({ pin, onCreated, onPinError }) {
   )
 }
 
+/**
+ * The other attendees on a group order. The first ticket is the buyer's own;
+ * a guest phone is shown only when it differs from the buyer's, since a blank
+ * guest phone falls back to the buyer's number.
+ */
+function GuestPills({ tickets, buyerPhone }) {
+  const guests = tickets.slice(1)
+  if (guests.length === 0) return null
+  return (
+    <ul className="mt-1.5 flex max-w-xs flex-wrap gap-1">
+      {guests.map((ticket) => (
+        <li
+          key={ticket.id}
+          className="rounded-md border border-brand-black/30 bg-brand-yellow/60 px-1.5 py-0.5 text-xs font-bold leading-tight"
+        >
+          {ticket.attendee_name}
+          {ticket.phone && ticket.phone !== buyerPhone && (
+            <span className="ms-1 font-semibold text-brand-black/60" dir="ltr">
+              {ticket.phone}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function AllOrders({ orders, busyOrderId, onCancel }) {
   return (
     <section className="space-y-3">
@@ -523,6 +550,7 @@ function AllOrders({ orders, busyOrderId, onCancel }) {
                         הלפר / ידני
                       </Badge>
                     )}
+                    <GuestPills tickets={tickets} buyerPhone={order.buyer_phone} />
                   </td>
                   <td className="p-3 font-bold text-brand-black/60" dir="ltr">
                     {chatUrl ? (
