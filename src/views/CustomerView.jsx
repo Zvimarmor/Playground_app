@@ -202,9 +202,8 @@ export default function CustomerView() {
       </Notice>
     )
   }
-  if (!tier) {
-    return <Notice icon={Ticket} title="הכרטיסים אזלו">כל הכרטיסים נמכרו. תודה על ההיענות!</Notice>
-  }
+  // No active round means every public seat across all tiers is taken.
+  if (!tier) return <SoldOut />
 
   const meta = TICKET_TYPES[selectedType]
   const extraGuests = meta.count - 1
@@ -353,6 +352,32 @@ export default function CustomerView() {
             </Button>
           </div>
         </form>
+
+        <WhatsAppLink>להצטרפות לקבוצת הוואטסאפ של הפלייגראונד 💬</WhatsAppLink>
+
+        <StaffFooter />
+      </div>
+    </Sky>
+  )
+}
+
+/** Shown instead of the order form once all public tickets are sold. */
+function SoldOut() {
+  return (
+    <Sky>
+      <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
+        <div className="pt-2">
+          <EventHeader />
+        </div>
+
+        <section className="rounded-2xl border-4 border-brand-black bg-brand-yellow p-6 text-center shadow-brutal">
+          <h2 className="text-2xl font-black leading-tight sm:text-3xl">אופס, אזלו הכרטיסים! 🛝✨</h2>
+          <p className="mt-3 text-base font-bold leading-relaxed">
+            כל הכרטיסים למכירה המוקדמת נמכרו!
+            <br />
+            מכירת כרטיסים נוספת תתאפשר ביום האירוע בכניסה (בדלת) על בסיס מקום פנוי בלבד 🌅
+          </p>
+        </section>
 
         <WhatsAppLink>להצטרפות לקבוצת הוואטסאפ של הפלייגראונד 💬</WhatsAppLink>
 
