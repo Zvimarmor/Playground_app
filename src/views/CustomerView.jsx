@@ -163,7 +163,7 @@ export default function CustomerView() {
     () => resolveActiveTier(tiers, sold),
     [tiers, sold]
   )
-  // The last round sells singles only, so a stale "quad" selection falls back
+  // A tier with no quad price sells singles only, so a stale "quad" selection falls back
   // to a single rather than rendering a price the tier does not offer.
   const selectedType = isTypeAvailable(tier, ticketType) ? ticketType : 'single'
 

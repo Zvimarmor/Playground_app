@@ -24,8 +24,8 @@ export const totalCapacity = (tiers) =>
   tiers.reduce((sum, tier) => sum + (tier.capacity || 0), 0)
 
 /**
- * A tier with no price for a ticket type does not sell it at all - that is how
- * the last round ("רגע אחרון") drops the group ticket.
+ * A tier with no price for a ticket type does not sell it at all - set a tier's
+ * price_quad to null to drop the group ticket from that round.
  */
 export function isTypeAvailable(tier, type) {
   const meta = TICKET_TYPES[type]
