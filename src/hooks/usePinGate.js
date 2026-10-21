@@ -25,11 +25,19 @@ export function usePinGate(role) {
 
   const submit = useCallback(
     async (typed) => {
-      const candidate = typed.trim()
+      let candidate = typed.trim()
       setChecking(true)
       setError(null)
       try {
-        const granted = await verifyPin(candidate)
+        let granted = await verifyPin(candidate)
+        // The door password is a lowercase word, so "LovePlayground" from a
+        // phone keyboard still opens it. The exact text is tried first, so an
+        // admin PIN with capitals keeps working here too.
+        const lower = candidate.toLowerCase()
+        if (!granted && role === 'helper' && lower !== candidate) {
+          granted = await verifyPin(lower)
+          if (granted) candidate = lower
+        }
         const allowed = role === 'admin' ? granted === 'admin' : granted === 'admin' || granted === 'helper'
         if (!allowed) {
           setError('קוד שגוי, נסו שוב')
