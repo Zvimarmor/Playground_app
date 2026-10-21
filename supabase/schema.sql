@@ -25,7 +25,7 @@ create table if not exists public.events_config (
 alter table public.events_config add column if not exists paybox_group_url text;
 
 -- price_quad is nullable on purpose: a null means "no group ticket in this
--- tier" (that tier sells singles only).
+-- tier" (the last round sells singles only).
 create table if not exists public.tiers (
   id           uuid primary key default gen_random_uuid(),
   name         text    not null,
@@ -506,12 +506,12 @@ where not exists (select 1 from public.events_config);
 --  tier            capacity  single  quad (4 people)
 --  מוקדמות             40      80      280   (70 ₪ לאדם)
 --  כרטיס רגיל          80      90      320   (80 ₪ לאדם)
---  רגע אחרון           40      80      280   (70 ₪ לאדם)
+--  רגע אחרון           40     100      ----  (אין כרטיס קבוצתי)
 insert into public.tiers (name, capacity, price_single, price_quad, sort_order)
 select * from (values
   ('מוקדמות',    40,  80::numeric, 280::numeric, 1),
   ('כרטיס רגיל', 80,  90::numeric, 320::numeric, 2),
-  ('רגע אחרון',  40,  80::numeric, 280::numeric, 3)
+  ('רגע אחרון',  40, 100::numeric, null::numeric, 3)
 ) as t(name, capacity, price_single, price_quad, sort_order)
 where not exists (select 1 from public.tiers);
 
@@ -525,7 +525,7 @@ update public.tiers t set
 from (values
   (1, 'מוקדמות',    40,  80::numeric, 280::numeric),
   (2, 'כרטיס רגיל', 80,  90::numeric, 320::numeric),
-  (3, 'רגע אחרון',  40,  80::numeric, 280::numeric)
+  (3, 'רגע אחרון',  40, 100::numeric, null::numeric)
 ) as v(sort_order, name, capacity, price_single, price_quad)
 where t.sort_order = v.sort_order;
 
