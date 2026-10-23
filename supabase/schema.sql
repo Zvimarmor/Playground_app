@@ -506,12 +506,14 @@ where not exists (select 1 from public.events_config);
 --  tier            capacity  single  quad (4 people)
 --  מוקדמות             40      80      280   (70 ₪ לאדם)
 --  כרטיס רגיל          80      90      320   (80 ₪ לאדם)
---  רגע אחרון           40     100      ----  (אין כרטיס קבוצתי)
+--  רגע אחרון           60     110      ----  (אין כרטיס קבוצתי)
+--  The rounds add up to a hard cap of 180; 160 is the quota the admin view
+--  shows, with the last 20 as overflow.
 insert into public.tiers (name, capacity, price_single, price_quad, sort_order)
 select * from (values
   ('מוקדמות',    40,  80::numeric, 280::numeric, 1),
   ('כרטיס רגיל', 80,  90::numeric, 320::numeric, 2),
-  ('רגע אחרון',  40, 100::numeric, null::numeric, 3)
+  ('רגע אחרון',  60, 110::numeric, null::numeric, 3)
 ) as t(name, capacity, price_single, price_quad, sort_order)
 where not exists (select 1 from public.tiers);
 
@@ -525,7 +527,7 @@ update public.tiers t set
 from (values
   (1, 'מוקדמות',    40,  80::numeric, 280::numeric),
   (2, 'כרטיס רגיל', 80,  90::numeric, 320::numeric),
-  (3, 'רגע אחרון',  40, 100::numeric, null::numeric)
+  (3, 'רגע אחרון',  60, 110::numeric, null::numeric)
 ) as v(sort_order, name, capacity, price_single, price_quad)
 where t.sort_order = v.sort_order;
 

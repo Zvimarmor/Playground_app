@@ -20,6 +20,12 @@ export function resolveActiveTier(tiers, soldCount) {
   return { tier: null, remainingInTier: 0, totalCapacity: cumulative }
 }
 
+/**
+ * The quota shown to staff. Sales actually run to totalCapacity (180): the
+ * last round carries 20 overflow seats beyond this number.
+ */
+export const ADVERTISED_CAPACITY = 160
+
 export const totalCapacity = (tiers) =>
   tiers.reduce((sum, tier) => sum + (tier.capacity || 0), 0)
 

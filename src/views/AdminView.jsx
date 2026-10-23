@@ -9,7 +9,7 @@ import {
 import {
   STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, formatMoneyPrecise, isValidPhone, whatsappUrl,
 } from '../lib/format'
-import { resolveActiveTier, totalCapacity } from '../lib/tiers'
+import { ADVERTISED_CAPACITY, resolveActiveTier, totalCapacity } from '../lib/tiers'
 import { downloadCsv } from '../lib/csv'
 import { usePinGate } from '../hooks/usePinGate'
 import PinGate from '../components/PinGate'
@@ -176,15 +176,15 @@ function Dashboard({ pin, onLock, onPinError }) {
             tone="lime"
             icon={Ticket}
             label="כרטיסים שנמכרו"
-            value={<span dir="ltr">{metrics.sold} / {metrics.capacity}</span>}
-            hint={`הזמנות ציבוריות פעילות · ${Math.max(metrics.capacity - metrics.sold, 0)} מקומות פנויים`}
+            value={<span dir="ltr">{metrics.sold} / {ADVERTISED_CAPACITY}</span>}
+            hint={`הזמנות ציבוריות פעילות · עוד ${Math.max(metrics.capacity - metrics.sold, 0)} עד המכסה המלאה (${metrics.capacity})`}
           />
           <Metric
             tone="white"
             icon={HardHat}
             label="כרטיסי הלפר / ידני"
             value={metrics.manual}
-            hint={`לא נספרים ב-${metrics.capacity}`}
+            hint={`לא נספרים ב-${ADVERTISED_CAPACITY}`}
           />
           <Metric
             tone="black"
