@@ -119,6 +119,35 @@ function StaffLink({ to, icon: Icon, children }) {
 }
 
 export default function CustomerView() {
+  return EVENT.isOver ? <ThankYou /> : <TicketSales />
+}
+
+/** Post-event landing page: a thank-you note and the way into the group. */
+function ThankYou() {
+  return (
+    <Sky>
+      <div className="mx-auto max-w-lg space-y-5 p-4 pb-16 sm:p-6">
+        <div className="pt-2">
+          <EventHeader compact />
+        </div>
+
+        <section className="rounded-2xl border-4 border-brand-black bg-brand-yellow p-8 text-center shadow-[8px_8px_0px_#000]">
+          <h2 className="text-3xl font-black leading-tight">וואו, איזה מטורף היה! 🛝✨🪩</h2>
+          <p className="mt-4 text-base font-bold leading-relaxed">
+            תודה לכל מי שבא/ה להרים, לרקוד ולהציף את הגג באנרגיות הכי טובות בעיר 🌅🍃
+          </p>
+          <p className="mt-4 text-lg font-black">היה פשוט מושלם. נתראה במסיבה הבאה! 😉🍺🎶</p>
+        </section>
+
+        <WhatsAppLink>להצטרפות לקבוצת הוואטסאפ של הפלייגראונד למסיבה הבאה 💬</WhatsAppLink>
+
+        <StaffFooter />
+      </div>
+    </Sky>
+  )
+}
+
+function TicketSales() {
   const [state, setState] = useState({ loading: true, error: null, config: null, tiers: [], sold: 0 })
   const [ticketType, setTicketType] = useState('single')
   const [buyerName, setBuyerName] = useState('')

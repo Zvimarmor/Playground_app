@@ -11,6 +11,8 @@ export const EVENT = {
   time: '11:00 - 16:30',
   venue: 'המרפסת של מוסללה',
   vibe: ['בייס', 'אלקטרוני', 'טראנס', 'עולם'],
+  // Flip back to false to reopen ticket sales for the next event.
+  isOver: true,
   whatsappUrl: 'https://chat.whatsapp.com/DH741rXpzd1Fccjbw7v6p5?s=cl&p=i&mlu=4',
   // `names` holds more than one artist for a back-to-back set.
   lineup: [
