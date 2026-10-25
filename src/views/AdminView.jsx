@@ -7,7 +7,7 @@ import {
   createOrder, fetchConfig, fetchOrdersWithTickets, fetchTiers, setOrderStatus, subscribeToChanges,
 } from '../lib/api'
 import {
-  STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, formatMoneyPrecise, isValidPhone, whatsappUrl,
+  STATUS_LABELS, TICKET_TYPE_LIST, TICKET_TYPES, formatDateTime, formatMoney, formatMoneyPrecise, isValidPhone, localPhone, whatsappUrl,
 } from '../lib/format'
 import { ADVERTISED_CAPACITY, resolveActiveTier, totalCapacity } from '../lib/tiers'
 import { downloadCsv } from '../lib/csv'
@@ -122,18 +122,25 @@ function Dashboard({ pin, onLock, onPinError }) {
   }
 
   const exportCsv = () => {
-    const rows = data.orders.flatMap((order) =>
-      (order.tickets ?? []).map((ticket) => [
-        ticket.attendee_name,
-        ticket.phone ?? '',
-        order.is_manual ? 'הלפר / ידני' : TICKET_TYPES[order.ticket_type]?.label ?? order.ticket_type,
-        STATUS_LABELS[order.payment_status],
-        ticket.is_checked_in ? `נכנס ב-${formatDateTime(ticket.checked_in_at)}` : 'לא נכנס',
-      ])
-    )
+    // One row per attendee on every order that wasn't cancelled. A group order's
+    // price is split evenly, so each guest on a 280 quad shows 70.
+    const rows = data.orders
+      .filter((order) => order.payment_status !== 'cancelled')
+      .flatMap((order) =>
+        (order.tickets ?? []).map((ticket) => [
+          ticket.attendee_name,
+          localPhone(ticket.phone || order.buyer_phone),
+          ticket.is_checked_in ? 'כן' : 'לא',
+          ticket.is_checked_in ? formatDateTime(ticket.checked_in_at) : '',
+          Number(order.total_amount) / (order.tickets_count || 1),
+          order.is_manual ? 'הלפר / ידני' : TICKET_TYPES[order.ticket_type]?.label ?? order.ticket_type,
+          STATUS_LABELS[order.payment_status],
+          order.buyer_name,
+        ])
+      )
     downloadCsv(
       `attendees-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['שם', 'טלפון', 'סוג כרטיס', 'סטטוס תשלום', 'כניסה'],
+      ['שם', 'טלפון', 'נכנס למסיבה', 'שעת כניסה', 'מחיר ששולם (₪)', 'סוג כרטיס', 'סטטוס תשלום', 'שם הרוכש'],
       rows
     )
   }

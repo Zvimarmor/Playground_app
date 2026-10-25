@@ -58,6 +58,20 @@ export const whatsappUrl = (value) => {
   return digits ? `https://wa.me/${digits}` : null
 }
 
+/**
+ * A stored phone as a local Israeli number: +972 / 972 / 00972 becomes a
+ * leading 0, and the result gets a dash (052-1234567). The dash also stops
+ * Excel from reading it as a number and dropping the leading zero.
+ */
+export const localPhone = (value) => {
+  let digits = digitsOnly(value)
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  if (digits.startsWith('972')) digits = `0${digits.slice(3)}`
+  if (digits.length === 10 && digits.startsWith('05')) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  if (digits.length === 9 && digits.startsWith('0')) return `${digits.slice(0, 2)}-${digits.slice(2)}`
+  return (value ?? '').trim()
+}
+
 export const isValidPhone = (value) => {
   const digits = digitsOnly(value)
   return digits.length >= 9 && digits.length <= 15
