@@ -6,6 +6,12 @@ For every image in SRC_DIR (e.g. the unzipped Google Drive folder 23/10):
 
   1. Apply the EXIF orientation with PIL.ImageOps.exif_transpose, so the
      pixels themselves are upright and no viewer depends on the tag.
+     Canon RAW (.cr2) is converted to RGB JPEG: the camera's own full-size
+     JPEG rendering embedded in the file is used when there is one (camera
+     colours, and far faster than developing the RAW), turned upright by the
+     orientation LibRaw reads from the file; otherwise LibRaw develops the RAW.
+     A .cr2 with a JPEG twin of the same name (RAW+JPEG shooting) is skipped,
+     so the album does not get every such photo twice.
   2. Catch photos that are still sideways - pixels stored rotated with no
      EXIF tag to say so. Rotating every landscape photo blindly would break
      the correct ones, so the script runs the same SCRFD face detector the
@@ -13,8 +19,9 @@ For every image in SRC_DIR (e.g. the unzipped Google Drive folder 23/10):
      only turns a photo when a sideways orientation clearly finds faces the
      upright one does not. Photos without faces are left as they are.
      --force-rotate NAME applies .rotate(-90, expand=True) by hand.
-  3. Write the result to OUT_DIR at full resolution: same file name, same
+  3. Write the result to OUT_DIR at full resolution as <name>.jpg - same
      pixels, width/height swapped only when it was turned a quarter turn.
+     Two sources with the same name (different subfolders) get <name>-2.jpg.
      Point /admin/photos at OUT_DIR - that page does the face indexing, and a
      photo is only findable on /find-photos once it has been indexed there.
   4. With --upload, also put each straightened original in the
@@ -25,7 +32,7 @@ For every image in SRC_DIR (e.g. the unzipped Google Drive folder 23/10):
 
 Setup:
     python3 -m venv .venv && source .venv/bin/activate
-    pip install pillow numpy onnxruntime supabase
+    pip install pillow numpy onnxruntime supabase rawpy
 
 Usage:
     python upload_and_rotate.py ~/Downloads/23-10 --out ~/Downloads/23-10-upright
@@ -36,6 +43,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -50,7 +58,18 @@ from PIL import Image, ImageOps
 ROOT = Path(__file__).resolve().parent
 DETECTOR = ROOT / "public" / "models" / "det_500m.onnx"
 BUCKET = "event-photos"
-EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+JPEG_EXTENSIONS = {".jpg", ".jpeg"}
+RAW_EXTENSIONS = {".cr2"}  # matched case-insensitively, so .CR2 too
+EXTENSIONS = JPEG_EXTENSIONS | {".png", ".webp"} | RAW_EXTENSIONS
+
+# A RAW's embedded preview is used when its long side is at least this - the
+# site shows photos at 2048px. Smaller previews mean developing the RAW.
+MIN_PREVIEW_SIDE = 2048
+# LibRaw's sizes.flip -> the transpose that makes the image upright.
+LIBRAW_FLIP = {3: Image.Transpose.ROTATE_180, 5: Image.Transpose.ROTATE_90, 6: Image.Transpose.ROTATE_270}
+# EXIF worth carrying over from a RAW; its IFD0 also holds pointers into the RAW data, which a JPEG must not.
+RAW_EXIF_TAGS = (0x010F, 0x0110, 0x0132, 0x013B, 0x8298)  # Make, Model, DateTime, Artist, Copyright
+RAW_EXIF_IFD_TAGS = (0x9003, 0x9004, 0x829A, 0x829D, 0x8827, 0x920A)  # dates, exposure, f-number, ISO, focal length
 
 DET_SIZE = 640
 STRIDES = (8, 16, 32)
@@ -144,15 +163,74 @@ class Result:
     output: Path
 
 
-def straighten(path: Path, out_dir: Path, detector: FaceDetector | None, force: bool) -> Result:
+@dataclass
+class Loaded:
+    upright: Image.Image
+    stored_size: tuple[int, int]  # as the pixels sit in the file
+    exif_fixed: bool  # whether the camera's orientation tag turned it
+    exif: Image.Exif
+    icc: bytes | None
+
+
+def load_image(path: Path) -> Loaded:
     with Image.open(path) as original:
         original.load()
-        raw_size = original.size
-        icc = original.info.get("icc_profile")
         exif_fixed = original.getexif().get(0x0112, 1) != 1
         upright = ImageOps.exif_transpose(original)
+        return Loaded(upright, original.size, exif_fixed, upright.getexif(), original.info.get("icc_profile"))
 
-    exif = upright.getexif()
+
+def load_raw(path: Path) -> Loaded:
+    import rawpy  # only needed when the folder has RAW files
+
+    with rawpy.imread(str(path)) as raw:
+        flip = raw.sizes.flip
+        preview = None
+        try:
+            thumb = raw.extract_thumb()
+            if thumb.format == rawpy.ThumbFormat.JPEG:
+                preview = Image.open(io.BytesIO(thumb.data))
+                preview.load()
+        except (rawpy.LibRawNoThumbnailError, rawpy.LibRawUnsupportedThumbnailError):
+            pass
+
+        if preview is not None and max(preview.size) >= MIN_PREVIEW_SIDE:
+            # The preview is stored as the sensor saw it; its own EXIF (if any)
+            # is ignored so the orientation is applied exactly once, from LibRaw.
+            stored = preview.size
+            icc = preview.info.get("icc_profile")
+            image = preview.convert("RGB")
+            upright = image.transpose(LIBRAW_FLIP[flip]) if flip in LIBRAW_FLIP else image
+        else:
+            # LibRaw applies the orientation itself while developing (sRGB, 8-bit).
+            upright = Image.fromarray(raw.postprocess(use_camera_wb=True, output_bps=8))
+            stored = upright.size[::-1] if flip in (5, 6) else upright.size
+            icc = None
+
+    return Loaded(upright, stored, flip in LIBRAW_FLIP, raw_exif(path), icc)
+
+
+def raw_exif(path: Path) -> Image.Exif:
+    """Date, camera and exposure from a RAW, without its TIFF structure tags."""
+    exif = Image.Exif()
+    try:
+        with Image.open(path) as tiff:  # Pillow reads a CR2's TIFF header, not its pixels
+            source = tiff.getexif()
+            for tag in RAW_EXIF_TAGS:
+                if tag in source:
+                    exif[tag] = source[tag]
+            details = source.get_ifd(0x8769)
+            kept = {tag: details[tag] for tag in RAW_EXIF_IFD_TAGS if tag in details}
+            if kept:
+                exif.get_ifd(0x8769).update(kept)
+    except Exception:
+        pass  # metadata is a nicety - never fail a photo over it
+    return exif
+
+
+def straighten(path: Path, output: Path, detector: FaceDetector | None, force: bool) -> Result:
+    loaded = load_raw(path) if path.suffix.lower() in RAW_EXTENSIONS else load_image(path)
+    upright, exif = loaded.upright, loaded.exif
 
     angle = -90 if force else (best_rotation(detector, upright) if detector else 0)
     straight = upright.rotate(angle, expand=True) if angle else upright
@@ -163,9 +241,23 @@ def straighten(path: Path, out_dir: Path, detector: FaceDetector | None, force: 
         raise RuntimeError(f"size changed unexpectedly: {upright.size} -> {straight.size}")
 
     exif[0x0112] = 1  # the pixels are upright now; a stale tag would turn them again
-    output = out_dir / (path.stem + ".jpg")
-    straight.convert("RGB").save(output, "JPEG", quality=95, exif=exif.tobytes(), icc_profile=icc)
-    return Result(path.name, raw_size, straight.size, exif_fixed, angle, output)
+    straight.convert("RGB").save(output, "JPEG", quality=95, exif=exif.tobytes(), icc_profile=loaded.icc)
+    return Result(path.name, loaded.stored_size, straight.size, loaded.exif_fixed, angle, output)
+
+
+def has_jpeg_twin(path: Path) -> bool:
+    """IMG_0001.CR2 next to IMG_0001.JPG - the camera shot RAW+JPEG."""
+    return any(path.with_suffix(ext).exists() or path.with_suffix(ext.upper()).exists() for ext in JPEG_EXTENSIONS)
+
+
+def output_path(path: Path, out_dir: Path, claimed: set[str]) -> Path:
+    """<stem>.jpg in out_dir, or <stem>-2.jpg ... when another source already took that name."""
+    name, n = f"{path.stem}.jpg", 1
+    while name.lower() in claimed:
+        n += 1
+        name = f"{path.stem}-{n}.jpg"
+    claimed.add(name.lower())
+    return out_dir / name
 
 
 def load_env(path: Path) -> None:
@@ -219,20 +311,28 @@ def main() -> None:
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     forced = set(args.force_rotate)
 
-    counts = {"exif": 0, "rotated": 0, "uploaded": 0, "failed": 0}
+    counts = {"exif": 0, "rotated": 0, "uploaded": 0, "skipped": 0, "failed": 0}
+    claimed: set[str] = set()
     for n, path in enumerate(files, 1):
         prefix = f"[{n}/{len(files)}] {path.name}"
+        if path.suffix.lower() in RAW_EXTENSIONS and has_jpeg_twin(path):
+            counts["skipped"] += 1
+            print(f"{prefix}: skipped - the camera's JPEG of the same shot is used instead")
+            continue
         try:
-            result = straighten(path, args.out, detector, path.name in forced)
+            result = straighten(path, output_path(path, args.out, claimed), detector, path.name in forced)
             notes = []
+            if path.suffix.lower() in RAW_EXTENSIONS:
+                notes.append(f"RAW -> {result.output.name}")
             if result.exif_fixed:
                 counts["exif"] += 1
                 notes.append("EXIF applied")
             if result.rotated:
                 counts["rotated"] += 1
                 notes.append(f"turned {'clockwise' if result.rotated < 0 else 'counter-clockwise'}")
-            if upload and path.name not in manifest:
-                manifest[path.name] = upload(result.output)
+            source = path.relative_to(args.src).as_posix()  # unique even when names repeat across subfolders
+            if upload and source not in manifest:
+                manifest[source] = upload(result.output)
                 manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
                 counts["uploaded"] += 1
                 notes.append("uploaded")
@@ -244,7 +344,7 @@ def main() -> None:
 
     print(
         f"\nDone: {len(files)} photos, {counts['exif']} EXIF-oriented, {counts['rotated']} turned upright, "
-        f"{counts['uploaded']} uploaded, {counts['failed']} failed.\n"
+        f"{counts['uploaded']} uploaded, {counts['skipped']} RAW skipped (JPEG twin), {counts['failed']} failed.\n"
         f"Next: /admin/photos -> choose folder -> {args.out}"
     )
 
