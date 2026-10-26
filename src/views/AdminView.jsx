@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  BadgeCheck, Banknote, Calculator, Download, HardHat, Hourglass, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, Users,
+  BadgeCheck, Banknote, Calculator, Download, HardHat, Hourglass, Images, LogOut, MessageCircle, RefreshCw, Ticket, UserPlus, Users,
   XCircle,
 } from 'lucide-react'
 import {
@@ -162,7 +163,7 @@ function Dashboard({ pin, onLock, onPinError }) {
               </Badge>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={load} aria-label="רענון" className="px-3">
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -170,6 +171,15 @@ function Dashboard({ pin, onLock, onPinError }) {
               <Download className="h-4 w-4" />
               ייצוא CSV
             </Button>
+            <Link
+              to="/admin/photos"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-brand-black bg-brand-white
+                px-4 py-3 text-sm font-extrabold shadow-brutal-sm transition-all active:translate-x-[2px]
+                active:translate-y-[2px] active:shadow-brutal-xs"
+            >
+              <Images className="h-4 w-4" />
+              אלבום
+            </Link>
             <Button variant="ghost" onClick={onLock} aria-label="יציאה" className="px-3">
               <LogOut className="h-4 w-4" />
             </Button>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  CalendarClock, CheckCircle2, DoorOpen, ExternalLink, Lock, MessageCircle, ShieldCheck, Ticket, User, Users, X,
+  CalendarClock, Camera, CheckCircle2, ChevronLeft, DoorOpen, ExternalLink, Lock, MessageCircle, ShieldCheck, Ticket, User,
+  Users, X,
 } from 'lucide-react'
 import { fetchConfig, fetchSoldCount, fetchTiers, createOrder } from '../lib/api'
 import {
@@ -141,9 +142,31 @@ function ThankYou() {
 
         <WhatsAppLink>להצטרפות לקבוצת הוואטסאפ של הפלייגראונד למסיבה הבאה 💬</WhatsAppLink>
 
+        <FindPhotosLink />
+
         <StaffFooter />
       </div>
     </Sky>
+  )
+}
+
+/** Way into /find-photos - styled like WhatsAppLink, in the primary coral. */
+function FindPhotosLink() {
+  return (
+    <Link
+      to="/find-photos"
+      className="flex items-center gap-3 rounded-3xl border-[3px] border-brand-black bg-brand-coral p-4
+        text-brand-white shadow-brutal transition-all hover:bg-brand-black
+        active:translate-x-[2px] active:translate-y-[2px] active:shadow-brutal-xs"
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border-2 border-brand-black bg-brand-yellow text-brand-black shadow-brutal-xs">
+        <Camera className="h-6 w-6" />
+      </span>
+      <span className="min-w-0 flex-1 text-base font-black leading-snug">
+        מצא את התמונות שלי / Find My Photos
+      </span>
+      <ChevronLeft className="h-5 w-5 shrink-0" />
+    </Link>
   )
 }
 
