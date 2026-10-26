@@ -17,10 +17,14 @@ export const FACE_SIZE = 112
 export const EMBEDDING_DIM = 512
 
 /**
- * Same-person cut-off for cosine similarity between ArcFace embeddings.
- * Informational only: find_my_photos() enforces it in the database.
+ * Same-person cut-offs for cosine similarity between ArcFace embeddings.
+ * 0.42 is the default search; the guest can widen it once nothing is found,
+ * or tighten it when strangers show up. find_my_photos() clamps whatever it
+ * is sent to the 0.38-0.46 range.
  */
 export const MATCH_THRESHOLD = 0.42
+export const EXPANDED_THRESHOLD = 0.38
+export const STRICT_THRESHOLD = 0.46
 
 const STRIDES = [8, 16, 32]
 const ANCHORS_PER_CELL = 2

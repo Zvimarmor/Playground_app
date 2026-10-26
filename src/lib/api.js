@@ -98,21 +98,24 @@ export const PHOTO_BUCKET = 'event-photos'
  * @property {string} thumb_path  grid thumbnail (long side 480px)
  * @property {number} width
  * @property {number} height
- * @property {number} similarity  best face match, always >= 0.42
+ * @property {number} similarity  best face match, always >= the threshold searched with
  */
 
 /**
- * Album photos with a face matching `embedding` (unit length, 512-d). The
- * 0.42 cosine threshold is applied inside the database.
+ * Album photos with a face matching `embedding` (unit length, 512-d) at
+ * cosine similarity >= `threshold`. The database clamps the threshold to
+ * 0.38-0.46.
  *
  * @param {Float32Array} embedding
+ * @param {number} threshold
  * @returns {Promise<MatchedPhoto[]>}
  */
-export const findMyPhotos = async (embedding) =>
+export const findMyPhotos = async (embedding, threshold) =>
   unwrap(
     await supabase.rpc('find_my_photos', {
       // pgvector reads a JSON number array as a vector; 6 decimals is plenty.
       p_embedding: Array.from(embedding, (value) => Number(value.toFixed(6))),
+      p_threshold: threshold,
     })
   )
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, ImagePlus, ImageOff, RotateCcw, ScanFace, Search, ShieldCheck, Upload } from 'lucide-react'
 import { findMyPhotos } from '../lib/api'
-import { averageEmbedding } from '../lib/faceMath'
+import { EXPANDED_THRESHOLD, MATCH_THRESHOLD, STRICT_THRESHOLD, averageEmbedding } from '../lib/faceMath'
 import { SelfieError, loadFaceModels, selfieEmbedding } from '../lib/faces'
 import SelfieCamera, { hasLiveCamera } from '../components/SelfieCamera'
 import SelfiePreview from '../components/SelfiePreview'
@@ -13,8 +13,8 @@ import { BackButton, Badge, Button, Card, ErrorBanner, Sky, Spinner } from '../c
  * /find-photos - guests take 2-3 selfies, each is turned into a face
  * embedding on the device, the embeddings are averaged, and the database
  * returns every album photo with a face at cosine similarity >= 0.42.
- * The threshold is fixed in find_my_photos(); there is deliberately no way to
- * loosen it from here.
+ * The averaged vector is kept, so re-searching at 0.38 (nothing found) or
+ * 0.46 (strangers in the results) needs no new selfies.
  */
 
 const PROMPTS = [
@@ -52,6 +52,9 @@ export default function FindPhotosView() {
   const [phase, setPhase] = useState('capture') // 'capture' | 'searching' | 'results'
   const [results, setResults] = useState([])
   const [searchError, setSearchError] = useState(null)
+  // v_avg of the last search and the threshold it ran with.
+  const [embedding, setEmbedding] = useState(null)
+  const [threshold, setThreshold] = useState(MATCH_THRESHOLD)
 
   // Latest slots for the async selfie check, which must not write over a
   // slot that was retaken while it ran.
@@ -106,19 +109,28 @@ export default function FindPhotosView() {
     setSource('upload')
   }, [])
 
-  const search = async () => {
+  /** On failure the guest goes back to where they searched from, with the error shown. */
+  const runSearch = async (vector, value) => {
+    const from = phase
     setPhase('searching')
     setSearchError(null)
     try {
-      const photos = await findMyPhotos(averageEmbedding(ready.map((slot) => slot.embedding)))
+      const photos = await findMyPhotos(vector, value)
+      setEmbedding(vector)
+      setThreshold(value)
       setResults(photos)
       setPhase('results')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setSearchError(err)
-      setPhase('capture')
+      setPhase(from)
     }
   }
+
+  const search = () => runSearch(averageEmbedding(ready.map((slot) => slot.embedding)), MATCH_THRESHOLD)
+
+  /** Same selfies, different threshold. */
+  const searchAgain = (value) => runSearch(embedding, value)
 
   const reset = () => {
     slots.forEach((slot) => slot.url && URL.revokeObjectURL(slot.url))
@@ -126,6 +138,8 @@ export default function FindPhotosView() {
     setRetakeIndex(null)
     setResults([])
     setSearchError(null)
+    setEmbedding(null)
+    setThreshold(MATCH_THRESHOLD)
     setPhase('capture')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -235,6 +249,17 @@ export default function FindPhotosView() {
                 <h2 className="text-2xl font-black">מצאנו {results.length} תמונות שלכם! 🎉</h2>
               </div>
               <MatchedGallery photos={results} />
+              {threshold < STRICT_THRESHOLD && (
+                <button
+                  type="button"
+                  onClick={() => searchAgain(STRICT_THRESHOLD)}
+                  className="mx-auto block text-sm font-bold text-brand-black/60 underline underline-offset-4
+                    transition hover:text-brand-black"
+                >
+                  רואה תמונות שלא שלך? אם כן לחץ כאן
+                </button>
+              )}
+              <ErrorBanner error={searchError} onDismiss={() => setSearchError(null)} />
               <Button variant="ghost" onClick={reset} className="w-full">
                 <RotateCcw className="h-4 w-4" />
                 חיפוש חדש
@@ -246,7 +271,18 @@ export default function FindPhotosView() {
                 <ImageOff className="h-8 w-8" />
               </div>
               <p className="text-base font-extrabold leading-relaxed">{EMPTY_TEXT}</p>
-              <Button onClick={reset} className="w-full py-4 text-base">
+              <ErrorBanner error={searchError} onDismiss={() => setSearchError(null)} />
+              {threshold > EXPANDED_THRESHOLD && (
+                <Button onClick={() => searchAgain(EXPANDED_THRESHOLD)} className="w-full py-4 text-base">
+                  <Search className="h-5 w-5" />
+                  נסה חיפוש מורחב
+                </Button>
+              )}
+              <Button
+                variant={threshold > EXPANDED_THRESHOLD ? 'ghost' : 'primary'}
+                onClick={reset}
+                className="w-full py-4 text-base"
+              >
                 <RotateCcw className="h-5 w-5" />
                 נסו שוב
               </Button>

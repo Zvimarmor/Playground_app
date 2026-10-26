@@ -48,7 +48,7 @@ create index if not exists photo_faces_photo_id_idx on public.photo_faces (photo
 
 -- A ~1,300 photo album holds a few thousand faces, so find_my_photos() does
 -- an exact scan in a few milliseconds. No ANN index on purpose: HNSW would
--- be approximate and could silently drop photos that pass 0.42.
+-- be approximate and could silently drop photos that pass the threshold.
 
 alter table public.photos      enable row level security;
 alter table public.photo_faces enable row level security;
@@ -80,17 +80,30 @@ create policy "event-photos admin upload" on storage.objects
 
 -- ---------- search -------------------------------------------------
 
--- Every photo that has at least one face with cosine similarity >= 0.42 to
--- p_embedding, best match first. The 0.42 is fixed here so no client can
--- widen the search. p_embedding must be unit length - a zero vector would
--- make every similarity NaN, and NaN sorts above any number in Postgres.
-create or replace function public.find_my_photos(p_embedding extensions.vector(512))
+-- Every photo that has at least one face with cosine similarity >=
+-- p_threshold to p_embedding, best match first. 0.42 is the default; the
+-- page offers 0.38 ("expanded search") and 0.46 ("not me"). The threshold is
+-- clamped to that range here, so no client can lower it far enough to list
+-- the whole album. p_embedding must be unit length - a zero vector would make
+-- every similarity NaN, and NaN sorts above any number in Postgres.
+--
+-- The first version took no threshold. Dropped explicitly: CREATE OR REPLACE
+-- with a new parameter would add a second overload, and PostgREST cannot pick
+-- between find_my_photos(vector) and find_my_photos(vector, float).
+drop function if exists public.find_my_photos(extensions.vector);
+
+create or replace function public.find_my_photos(
+  p_embedding extensions.vector(512),
+  p_threshold float default 0.42
+)
 returns table (id uuid, path text, thumb_path text, width int, height int, similarity real)
 language plpgsql
 stable
 security definer
 set search_path = public, extensions
 as $$
+declare
+  v_threshold float := greatest(0.38, least(0.46, coalesce(p_threshold, 0.42)));
 begin
   if p_embedding is null or abs(extensions.vector_norm(p_embedding) - 1) > 0.01 then
     raise exception 'invalid embedding' using errcode = '22023';
@@ -101,7 +114,7 @@ begin
   from (
     select f.photo_id, max(1 - (f.embedding <=> p_embedding)) as similarity
     from public.photo_faces f
-    where 1 - (f.embedding <=> p_embedding) >= 0.42
+    where 1 - (f.embedding <=> p_embedding) >= v_threshold
     group by f.photo_id
   ) m
   join public.photos p on p.id = m.photo_id
@@ -175,7 +188,7 @@ $$;
 
 -- ---------- function privileges ------------------------------------------
 
-grant execute on function public.find_my_photos(extensions.vector)                       to anon, authenticated;
+grant execute on function public.find_my_photos(extensions.vector, float)                to anon, authenticated;
 grant execute on function public.admin_photos(text)                                       to anon, authenticated;
 grant execute on function public.admin_add_photo(text, text, text, text, int, int, jsonb) to anon, authenticated;
 
