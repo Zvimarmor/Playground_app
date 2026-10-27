@@ -11,29 +11,52 @@ import {
   DET_SIZE, FACE_SIZE, alignmentTransform, decodeScrfd, letterboxScale, nms, normalize, toPlanarRgb,
 } from './faceMath'
 
+/*
+ * onnxruntime-web is pinned to 1.18: it is the last release with a
+ * single-threaded wasm build. Later builds always allocate a shared
+ * WebAssembly.Memory with a 4 GB ceiling, which iPhone Safari refuses, so the
+ * models never load there. The files are imported by path because the
+ * package's exports map hides them; Vite copies them into the build.
+ */
+import simdWasmUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm?url'
+import plainWasmUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm.wasm?url'
+
 const MODELS = {
   detector: '/models/det_500m.onnx',
   recognizer: '/models/w600k_mbf.onnx',
+}
+
+/** The face models could not be loaded or run in this browser. `cause` has the original error. */
+export class FaceModelError extends Error {
+  constructor(cause) {
+    super(cause?.message || String(cause))
+    this.name = 'FaceModelError'
+    this.cause = cause
+  }
 }
 
 let runtimePromise = null
 
 /**
  * Loads onnxruntime and both models once. A failed load is not cached, so the
- * caller can simply try again.
+ * caller can simply try again. Rejects with a FaceModelError.
  */
 export function loadFaceModels() {
   runtimePromise ??= (async () => {
     const ort = await import('onnxruntime-web/wasm')
+    // One thread selects the build without shared memory. ort-wasm.wasm is
+    // for phones without wasm SIMD (iOS before 16.4).
+    ort.env.wasm.numThreads = 1
+    ort.env.wasm.wasmPaths = { 'ort-wasm-simd.wasm': simdWasmUrl, 'ort-wasm.wasm': plainWasmUrl }
     const options = { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }
-    const [detector, recognizer] = await Promise.all([
-      ort.InferenceSession.create(MODELS.detector, options),
-      ort.InferenceSession.create(MODELS.recognizer, options),
-    ])
+    // One after the other: two sessions compiling at once doubles the peak
+    // memory, which is what an iPhone tab runs out of first.
+    const detector = await ort.InferenceSession.create(MODELS.detector, options)
+    const recognizer = await ort.InferenceSession.create(MODELS.recognizer, options)
     return { ort, detector, recognizer }
   })().catch((err) => {
     runtimePromise = null
-    throw err
+    throw err instanceof FaceModelError ? err : new FaceModelError(err)
   })
   return runtimePromise
 }

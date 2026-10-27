@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // onnxruntime-web finds its .wasm next to its own module via import.meta.url,
-  // which dev-time pre-bundling would break.
+  // onnxruntime-web is a large prebuilt bundle; its .wasm files are imported
+  // by URL in src/lib/faces.js, so it needs no dev-time pre-bundling.
   optimizeDeps: { exclude: ['onnxruntime-web'] },
 })

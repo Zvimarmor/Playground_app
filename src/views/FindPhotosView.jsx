@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, ImagePlus, ImageOff, RotateCcw, ScanFace, Search, ShieldCheck, Upload } from 'lucide-react'
 import { findMyPhotos } from '../lib/api'
 import { EXPANDED_THRESHOLD, MATCH_THRESHOLD, STRICT_THRESHOLD, averageEmbedding } from '../lib/faceMath'
-import { SelfieError, loadFaceModels, selfieEmbedding } from '../lib/faces'
+import { FaceModelError, SelfieError, loadFaceModels, selfieEmbedding } from '../lib/faces'
 import SelfieCamera, { hasLiveCamera } from '../components/SelfieCamera'
 import SelfiePreview from '../components/SelfiePreview'
 import MatchedGallery from '../components/MatchedGallery'
@@ -32,6 +32,15 @@ const SELFIE_ERRORS = {
   'too-small': 'הפנים קטנות מדי בתמונה. התקרבו קצת למצלמה.',
 }
 
+const MODELS_ERROR_TEXT = 'לא הצלחנו לטעון את זיהוי הפנים בדפדפן הזה. לחצו "לנסות שוב", ואם זה לא עוזר נסו דפדפן אחר.'
+
+/** What to tell the guest when a selfie could not be checked. */
+function selfieErrorText(err) {
+  if (err instanceof SelfieError) return SELFIE_ERRORS[err.reason]
+  if (err instanceof FaceModelError) return MODELS_ERROR_TEXT
+  return 'לא הצלחנו לקרוא את התמונה. נסו תמונה אחרת.'
+}
+
 const CAMERA_NOTICES = {
   denied: 'אין גישה למצלמה. אפשר לאשר גישה בהגדרות הדפדפן, או פשוט להעלות סלפי כאן למטה.',
   unavailable: 'לא הצלחנו לפתוח את המצלמה. אפשר להעלות סלפי כאן למטה.',
@@ -49,6 +58,7 @@ export default function FindPhotosView() {
   const [source, setSource] = useState(() => (hasLiveCamera() ? 'camera' : 'upload'))
   const [cameraNotice, setCameraNotice] = useState(null)
   const [models, setModels] = useState('loading') // 'loading' | 'ready' | 'error'
+  const [modelsError, setModelsError] = useState(null)
   const [phase, setPhase] = useState('capture') // 'capture' | 'searching' | 'results'
   const [results, setResults] = useState([])
   const [searchError, setSearchError] = useState(null)
@@ -63,9 +73,14 @@ export default function FindPhotosView() {
 
   const loadModels = useCallback(() => {
     setModels('loading')
+    setModelsError(null)
     loadFaceModels().then(
       () => setModels('ready'),
-      () => setModels('error')
+      (err) => {
+        console.error('Face models failed to load', err)
+        setModelsError(err)
+        setModels('error')
+      }
     )
   }, [])
 
@@ -95,11 +110,8 @@ export default function FindPhotosView() {
     try {
       next = { status: 'ok', url, embedding: await selfieEmbedding(blob) }
     } catch (err) {
-      next = {
-        status: 'error',
-        url,
-        error: err instanceof SelfieError ? SELFIE_ERRORS[err.reason] : 'לא הצלחנו לקרוא את התמונה. נסו תמונה אחרת.',
-      }
+      if (!(err instanceof SelfieError)) console.error('Selfie check failed', err)
+      next = { status: 'error', url, error: selfieErrorText(err) }
     }
     if (slotsRef.current[index].url === url) updateSlot(index, next)
   }
@@ -172,6 +184,9 @@ export default function FindPhotosView() {
                   <p className="mt-1 text-sm font-bold text-brand-black/70">{PROMPTS[activeIndex].hint}</p>
                 </div>
 
+                {models === 'error' && (
+                  <ErrorBanner error={`${MODELS_ERROR_TEXT}${modelsError?.message ? ` (${modelsError.message})` : ''}`} />
+                )}
                 {slots[activeIndex].status === 'error' && <ErrorBanner error={slots[activeIndex].error} />}
                 {cameraNotice && source === 'upload' && (
                   <p className="rounded-2xl border-2 border-brand-black bg-brand-yellow px-4 py-3 text-sm font-bold">

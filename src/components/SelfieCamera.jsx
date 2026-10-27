@@ -24,27 +24,45 @@ export default function SelfieCamera({ onCapture, onUnavailable, disabled = fals
   useEffect(() => {
     let stream = null
     let cancelled = false
-    navigator.mediaDevices
-      .getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
-        audio: false,
-      })
-      .then((media) => {
-        if (cancelled) {
-          media.getTracks().forEach((track) => track.stop())
-          return
-        }
-        stream = media
-        videoRef.current.srcObject = media
-      })
-      .catch((err) => {
-        if (!cancelled) onUnavailable(err?.name === 'NotAllowedError' || err?.name === 'SecurityError' ? 'denied' : 'unavailable')
-      })
+    const open = async () => {
+      let media
+      try {
+        media = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
+          audio: false,
+        })
+      } catch (err) {
+        // Some cameras refuse the size hints outright - any front camera will do.
+        if (err?.name !== 'OverconstrainedError') throw err
+        media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      }
+      if (cancelled) {
+        media.getTracks().forEach((track) => track.stop())
+        return
+      }
+      stream = media
+      const video = videoRef.current
+      video.srcObject = media
+      // iOS Safari does not always honour autoPlay on a MediaStream, and until
+      // the video plays it never fires loadeddata - start it by hand.
+      await video.play().catch(() => {})
+    }
+    open().catch((err) => {
+      console.error('Selfie camera failed', err)
+      if (!cancelled) onUnavailable(err?.name === 'NotAllowedError' || err?.name === 'SecurityError' ? 'denied' : 'unavailable')
+    })
     return () => {
       cancelled = true
       stream?.getTracks().forEach((track) => track.stop())
     }
   }, [onUnavailable])
+
+  // Ready once frames have real dimensions: iOS can report loadeddata while
+  // videoWidth is still 0, and a capture then would be empty.
+  const checkReady = () => {
+    const video = videoRef.current
+    if (video?.videoWidth && video.readyState >= 2) setReady(true)
+  }
 
   const capture = () => {
     const video = videoRef.current
@@ -66,7 +84,10 @@ export default function SelfieCamera({ onCapture, onUnavailable, disabled = fals
           autoPlay
           playsInline
           muted
-          onLoadedData={() => setReady(true)}
+          onLoadedData={checkReady}
+          onCanPlay={checkReady}
+          onPlaying={checkReady}
+          onResize={checkReady}
           className="h-full w-full -scale-x-100 object-cover"
         />
         {!ready && (
