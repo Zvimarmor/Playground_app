@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Download, Images, Share2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Download, Images, Share2, X } from 'lucide-react'
 import { photoUrl } from '../lib/api'
 import {
-  canShareFiles, downloadPhotos, fetchPhotoFiles, prefersShare, savePhoto, shareFiles,
+  SHARE_BATCH, blobDownloadWorks, canShareFiles, downloadFiles, fetchPhotoFile, prefersShare, savePhoto, shareFiles,
 } from '../lib/savePhotos'
 import { Button, ErrorBanner, Spinner } from './ui'
+
+const OPEN_IN_BROWSER = 'הדפדפן הזה לא מאפשר לשמור קבצים. פתחו את הדף בספארי או בכרום כדי לשמור את כל התמונות.'
 
 /**
  * Grid of matched album photos with a full-screen viewer and save buttons.
@@ -13,42 +15,10 @@ import { Button, ErrorBanner, Spinner } from './ui'
  */
 export default function MatchedGallery({ photos }) {
   const [openIndex, setOpenIndex] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [prepared, setPrepared] = useState(null) // files fetched, waiting for a fresh tap to share
-  const [error, setError] = useState(null)
-
-  const saveAll = async () => {
-    setError(null)
-    setSaving(true)
-    try {
-      if (prepared) {
-        if ((await shareFiles(prepared)) !== 'needs-tap') setPrepared(null)
-        return
-      }
-      if (!prefersShare()) {
-        await downloadPhotos(photos)
-        return
-      }
-      const files = await fetchPhotoFiles(photos)
-      if (!canShareFiles(files)) {
-        await downloadPhotos(photos)
-        return
-      }
-      if ((await shareFiles(files)) === 'needs-tap') setPrepared(files)
-    } catch (err) {
-      setError(err)
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <div className="space-y-4">
-      <Button variant={prepared ? 'success' : 'primary'} busy={saving} onClick={saveAll} className="w-full py-4 text-base">
-        {prepared ? <Share2 className="h-5 w-5" /> : <Download className="h-5 w-5" />}
-        {prepared ? 'התמונות מוכנות - לחצו לשמירה' : `הורדת כל התמונות (${photos.length})`}
-      </Button>
-      <ErrorBanner error={error} onDismiss={() => setError(null)} />
+      <SaveAll photos={photos} />
 
       <ul className="grid grid-cols-3 gap-2 sm:gap-3">
         {photos.map((photo, index) => (
@@ -73,11 +43,112 @@ export default function MatchedGallery({ photos }) {
   )
 }
 
+/**
+ * "Download All". On a phone the photos go through the share sheet in groups
+ * of SHARE_BATCH - each sheet needs its own tap - and the group the next tap
+ * will share is fetched ahead, so the sheet opens while the tap still counts.
+ * Elsewhere every photo is downloaded in turn.
+ */
+function SaveAll({ photos }) {
+  const share = useMemo(prefersShare, [])
+  const batches = useMemo(() => {
+    const groups = []
+    for (let i = 0; i < photos.length; i += SHARE_BATCH) groups.push(photos.slice(i, i + SHARE_BATCH))
+    return groups
+  }, [photos])
+  const [next, setNext] = useState(0) // the group the next tap shares
+  const [ready, setReady] = useState(null) // that group's files, once fetched
+  const [needsTap, setNeedsTap] = useState(false)
+  const [done, setDone] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!share) return undefined
+    let current = true
+    setReady(null)
+    Promise.all(batches[next].map(fetchPhotoFile)).then(
+      (files) => current && setReady(files),
+      () => {} // the tap will fetch again and report the error
+    )
+    return () => {
+      current = false
+    }
+  }, [share, batches, next])
+
+  const saveAll = async () => {
+    setError(null)
+    setNeedsTap(false)
+    setDone(false)
+    setBusy(true)
+    try {
+      if (!share) {
+        if (!blobDownloadWorks()) throw new Error(OPEN_IN_BROWSER)
+        await downloadFiles(await Promise.all(photos.map(fetchPhotoFile)))
+        setDone(true)
+        return
+      }
+      const files = ready ?? (await Promise.all(batches[next].map(fetchPhotoFile)))
+      let result = canShareFiles(files) ? await shareFiles(files) : 'unsupported'
+      if (result === 'unsupported') {
+        if (!blobDownloadWorks()) throw new Error(OPEN_IN_BROWSER)
+        await downloadFiles(files)
+        result = 'shared'
+      }
+      if (result === 'needs-tap') {
+        setReady(files)
+        setNeedsTap(true)
+      } else if (result === 'shared') {
+        const last = next + 1 >= batches.length
+        setNext(last ? 0 : next + 1)
+        setDone(last)
+      }
+      // 'cancelled': the guest closed the sheet - stay on this group.
+    } catch (err) {
+      setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const from = next * SHARE_BATCH + 1
+  const to = Math.min(photos.length, from + SHARE_BATCH - 1)
+  let label = `הורדת כל התמונות (${photos.length})`
+  if (needsTap) label = 'התמונות מוכנות - לחצו לשמירה'
+  else if (done) label = 'כל התמונות נשמרו ✓ · לשמור שוב'
+  else if (share && batches.length > 1) label = `שמירת תמונות ${from}-${to} מתוך ${photos.length}`
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant={needsTap || done ? 'success' : 'primary'}
+        busy={busy}
+        onClick={saveAll}
+        className="w-full py-4 text-base"
+      >
+        {!busy && (needsTap ? <Share2 className="h-5 w-5" /> : done ? <CheckCircle2 className="h-5 w-5" /> : <Download className="h-5 w-5" />)}
+        {label}
+      </Button>
+      {share && batches.length > 1 && !done && (
+        <p className="text-center text-xs font-bold text-brand-black/60">
+          בטלפון התמונות נשמרות בקבוצות של {SHARE_BATCH}. אחרי כל שמירה לחצו שוב לקבוצה הבאה.
+        </p>
+      )}
+      <ErrorBanner error={error} onDismiss={() => setError(null)} />
+    </div>
+  )
+}
+
+const LIGHTBOX_NOTICES = {
+  'long-press': 'לחצו לחיצה ארוכה על התמונה ובחרו "שמירה בתמונות"',
+}
+
 /** Full-screen viewer: arrows, keyboard and swipe to move, Escape to close. */
 function Lightbox({ photos, index, onIndexChange, onClose }) {
   const photo = photos[index]
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState(null) // 'needs-tap' | 'long-press' | an error message
   const touchStart = useRef(null)
 
   // The page reads right to left, so "next" sits on the left.
@@ -86,7 +157,13 @@ function Lightbox({ photos, index, onIndexChange, onClose }) {
     [index, photos.length, onIndexChange]
   )
 
-  useEffect(() => setLoaded(false), [photo.id])
+  // Fetch the photo as soon as it is shown, so tapping "download" can open
+  // the share sheet at once - iOS refuses it once the tap is a few seconds old.
+  useEffect(() => {
+    setLoaded(false)
+    setNotice(null)
+    fetchPhotoFile(photo).catch(() => {})
+  }, [photo])
 
   useEffect(() => {
     const onKey = (event) => {
@@ -105,8 +182,12 @@ function Lightbox({ photos, index, onIndexChange, onClose }) {
 
   const save = async () => {
     setSaving(true)
+    setNotice(null)
     try {
-      await savePhoto(photo)
+      const result = await savePhoto(photo)
+      if (result === 'needs-tap' || result === 'long-press') setNotice(result)
+    } catch (err) {
+      setNotice(err.message)
     } finally {
       setSaving(false)
     }
@@ -146,9 +227,18 @@ function Lightbox({ photos, index, onIndexChange, onClose }) {
         </span>
         <Button variant="success" busy={saving} onClick={save}>
           {!saving && <Download className="h-4 w-4" />}
-          הורדת התמונה
+          {notice === 'needs-tap' ? 'לחצו שוב לשמירה' : 'הורדת התמונה'}
         </Button>
       </div>
+      {notice && notice !== 'needs-tap' && (
+        <p
+          role="status"
+          onClick={(event) => event.stopPropagation()}
+          className="mx-3 rounded-2xl border-2 border-brand-black bg-brand-yellow px-4 py-2 text-center text-sm font-extrabold"
+        >
+          {LIGHTBOX_NOTICES[notice] ?? notice}
+        </p>
+      )}
 
       <div
         className="relative min-h-0 flex-1"
