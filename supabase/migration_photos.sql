@@ -99,7 +99,11 @@ create policy "event-photos admin upload" on storage.objects
 -- The first version took no threshold. Dropped explicitly: CREATE OR REPLACE
 -- with a new parameter would add a second overload, and PostgREST cannot pick
 -- between find_my_photos(vector) and find_my_photos(vector, float).
+-- The two-argument one is dropped too: CREATE OR REPLACE cannot change the
+-- columns a function returns, so a database holding an earlier draft of it
+-- would refuse the whole migration. The grant at the bottom restores access.
 drop function if exists public.find_my_photos(extensions.vector);
+drop function if exists public.find_my_photos(extensions.vector, float);
 
 create or replace function public.find_my_photos(
   p_embedding extensions.vector(512),
