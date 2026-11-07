@@ -67,7 +67,8 @@ function Sun({ className = '' }) {
 /** Full-bleed daytime backdrop used by every route. */
 export function Sky({ children, className = '' }) {
   return (
-    <div className={`relative min-h-screen overflow-hidden bg-brand-sky ${className}`}>
+    // clip, not hidden, where supported: hidden would stop position: sticky working inside.
+    <div className={`relative min-h-screen overflow-hidden supports-[overflow:clip]:overflow-clip bg-brand-sky ${className}`}>
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 select-none">
         <Sun className="-left-6 top-6 h-32 w-32 sm:left-6" />
         <Cloud className="right-[-3rem] top-24 h-24 w-44" opacity={0.95} />

@@ -20,26 +20,33 @@ export default function MatchedGallery({ photos }) {
     <div className="space-y-4">
       <SaveAll photos={photos} />
 
-      <ul className="grid grid-cols-3 gap-2 sm:gap-3">
-        {photos.map((photo, index) => (
-          <li key={photo.id}>
-            <button
-              type="button"
-              onClick={() => setOpenIndex(index)}
-              aria-label={`תמונה ${index + 1}`}
-              className="block aspect-square w-full overflow-hidden rounded-xl border-[3px] border-brand-black bg-brand-white
-                shadow-brutal-xs transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-brutal-sm"
-            >
-              <img src={photoUrl(photo.thumb_path)} alt="" loading="lazy" className="h-full w-full object-cover" />
-            </button>
-          </li>
-        ))}
-      </ul>
+      <PhotoGrid photos={photos} onOpen={setOpenIndex} />
 
       {openIndex !== null && (
         <Lightbox photos={photos} index={openIndex} onIndexChange={setOpenIndex} onClose={() => setOpenIndex(null)} />
       )}
     </div>
+  )
+}
+
+/** Square lazy-loaded thumbnails; `onOpen` gets the index of the tapped photo. */
+export function PhotoGrid({ photos, onOpen }) {
+  return (
+    <ul className="grid grid-cols-3 gap-2 sm:gap-3">
+      {photos.map((photo, index) => (
+        <li key={photo.id}>
+          <button
+            type="button"
+            onClick={() => onOpen(index)}
+            aria-label={`תמונה ${index + 1}`}
+            className="block aspect-square w-full overflow-hidden rounded-xl border-[3px] border-brand-black bg-brand-white
+              shadow-brutal-xs transition-all hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-brutal-sm"
+          >
+            <img src={photoUrl(photo.thumb_path)} alt="" loading="lazy" className="h-full w-full object-cover" />
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -143,8 +150,12 @@ const LIGHTBOX_NOTICES = {
   'long-press': 'לחצו לחיצה ארוכה על התמונה ובחרו "שמירה בתמונות"',
 }
 
-/** Full-screen viewer: arrows, keyboard and swipe to move, Escape to close. */
-function Lightbox({ photos, index, onIndexChange, onClose }) {
+/**
+ * Full-screen viewer: arrows, keyboard and swipe to move, Escape to close.
+ * `total` is for a list still being loaded: the counter shows it, and moving
+ * past the end waits for the next page instead of wrapping to the start.
+ */
+export function Lightbox({ photos, index, total = photos.length, onIndexChange, onClose }) {
   const photo = photos[index]
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -153,8 +164,12 @@ function Lightbox({ photos, index, onIndexChange, onClose }) {
 
   // The page reads right to left, so "next" sits on the left.
   const go = useCallback(
-    (step) => onIndexChange((index + step + photos.length) % photos.length),
-    [index, photos.length, onIndexChange]
+    (step) => {
+      const target = index + step
+      if (total > photos.length && (target < 0 || target >= photos.length)) return
+      onIndexChange((target + photos.length) % photos.length)
+    },
+    [index, photos.length, total, onIndexChange]
   )
 
   // Fetch the photo as soon as it is shown, so tapping "download" can open
@@ -208,7 +223,7 @@ function Lightbox({ photos, index, onIndexChange, onClose }) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`תמונה ${index + 1} מתוך ${photos.length}`}
+      aria-label={`תמונה ${index + 1} מתוך ${total}`}
       className="fixed inset-0 z-50 flex flex-col bg-brand-black/95"
       onClick={onClose}
     >
@@ -223,7 +238,7 @@ function Lightbox({ photos, index, onIndexChange, onClose }) {
           <X className="h-5 w-5" />
         </button>
         <span className="text-sm font-extrabold text-brand-white" dir="ltr">
-          {index + 1} / {photos.length}
+          {index + 1} / {total}
         </span>
         <Button variant="success" busy={saving} onClick={save}>
           {!saving && <Download className="h-4 w-4" />}

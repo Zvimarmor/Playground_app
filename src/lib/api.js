@@ -119,6 +119,26 @@ export const findMyPhotos = async (embedding, threshold) =>
     })
   )
 
+/** Photos per page of the "all photos" gallery. */
+export const ALBUM_PAGE_SIZE = 24
+
+/**
+ * One page of the album, newest first. Only the first page asks for the total,
+ * so scrolling costs the database nothing beyond the page itself.
+ *
+ * @param {number} from  rows already fetched
+ * @returns {Promise<{ photos: Omit<MatchedPhoto, 'similarity'>[], total: number | null }>}
+ */
+export async function fetchAlbumPage(from) {
+  const { data, count, error } = await supabase
+    .from('photos')
+    .select('id, path, thumb_path, width, height', from === 0 ? { count: 'exact' } : undefined)
+    .order('created_at', { ascending: false })
+    .order('id') // created_at can tie, and pages must not reshuffle between requests
+    .range(from, from + ALBUM_PAGE_SIZE - 1)
+  return { photos: unwrap({ data, error }), total: count }
+}
+
 /** @returns {Promise<{ source_keys: string[], faces: number }>} */
 export const fetchAlbumIndex = async (pin) => unwrap(await supabase.rpc('admin_photos', { p_pin: pin }))
 
