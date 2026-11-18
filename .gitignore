@@ -5,3 +5,7 @@ dist
 .DS_Store
 .venv
 __pycache__
+
+# Customer data exports - personal details, never commit
+backups/
+*.csv

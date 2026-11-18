@@ -3,6 +3,8 @@ import { EVENT } from '../lib/event'
 import { Badge } from './ui'
 
 // The poster's pop colours, one per act, on the site's sky blue.
+const TBA = 'יפורסם בקרוב'
+
 const LINEUP_TONES = [
   'bg-brand-lime text-brand-black',
   'bg-brand-yellow text-brand-black',
@@ -27,6 +29,7 @@ export default function EventHeader({ compact = false }) {
         {EVENT.title}
         {!compact && <span className="ms-2 inline-block [text-shadow:none]">{EVENT.emoji}</span>}
       </h1>
+      {EVENT.edition && <p className="mt-2 text-center text-2xl font-black sm:text-3xl">{EVENT.edition}</p>}
 
       {compact ? (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -36,7 +39,7 @@ export default function EventHeader({ compact = false }) {
           </Badge>
           <Badge tone="yellow">
             <Clock className="h-4 w-4" />
-            <span dir="ltr">{EVENT.time}</span>
+            {EVENT.time ? <span dir="ltr">{EVENT.time}</span> : `שעה: ${TBA}`}
           </Badge>
           <Badge tone="lime">
             <MapPin className="h-4 w-4" />
@@ -70,7 +73,7 @@ function EventFacts() {
         <FactChip
           emoji="🗓️"
           title={`${EVENT.day}, ${EVENT.date}`}
-          note={<span dir="ltr">{EVENT.time}</span>}
+          note={EVENT.time ? <span dir="ltr">{EVENT.time}</span> : `שעות: ${TBA}`}
           className="bg-brand-yellow"
         />
       </div>
@@ -112,6 +115,16 @@ function Vibe() {
 }
 
 function Lineup() {
+  if (EVENT.lineup.length === 0) {
+    return (
+      <div className="mt-4 rounded-2xl border-2 border-brand-black bg-brand-sky p-3 text-center shadow-brutal-xs">
+        <p className="text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-white" dir="ltr">
+          LINEUP
+        </p>
+        <p className="mt-1 text-base font-black text-brand-white">ליינאפ {TBA} 🎶</p>
+      </div>
+    )
+  }
   return (
     <div className="mt-4 rounded-2xl border-2 border-brand-black bg-brand-sky p-2.5 shadow-brutal-xs">
       <p className="mb-2 text-center text-[0.65rem] font-extrabold tracking-[0.3em] text-brand-white" dir="ltr">

@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Camera, ImagePlus, ImageOff, Images, RotateCcw, ScanFace, Search, ShieldCheck, Upload } from 'lucide-react'
+import { Camera, ImagePlus, ImageOff, RotateCcw, ScanFace, Search, ShieldCheck, Upload } from 'lucide-react'
 import { findMyPhotos } from '../lib/api'
 import { EXPANDED_THRESHOLD, MATCH_THRESHOLD, STRICT_THRESHOLD, averageEmbedding } from '../lib/faceMath'
 import { FaceModelError, SelfieError, loadFaceModels, selfieEmbedding } from '../lib/faces'
 import SelfieCamera, { hasLiveCamera } from '../components/SelfieCamera'
 import SelfiePreview from '../components/SelfiePreview'
 import MatchedGallery from '../components/MatchedGallery'
-import AllPhotosGallery from '../components/AllPhotosGallery'
 import EventHeader from '../components/EventHeader'
 import { BackButton, Badge, Button, Card, ErrorBanner, Sky, Spinner } from '../components/ui'
 
@@ -17,8 +15,6 @@ import { BackButton, Badge, Button, Card, ErrorBanner, Sky, Spinner } from '../c
  * returns every album photo with a face at cosine similarity >= 0.42.
  * The averaged vector is kept, so re-searching at 0.38 (nothing found) or
  * 0.46 (strangers in the results) needs no new selfies.
- *
- * /find-photos?view=all - the second tab, the whole album page by page.
  */
 
 const PROMPTS = [
@@ -57,8 +53,6 @@ const EMPTY_TEXT =
 const emptySlots = () => PROMPTS.map(() => ({ status: 'empty' }))
 
 export default function FindPhotosView() {
-  const [params, setParams] = useSearchParams()
-  const browsing = params.get('view') === 'all'
   const [slots, setSlots] = useState(emptySlots)
   const [retakeIndex, setRetakeIndex] = useState(null)
   const [source, setSource] = useState(() => (hasLiveCamera() ? 'camera' : 'upload'))
@@ -90,16 +84,8 @@ export default function FindPhotosView() {
     )
   }, [])
 
-  // Start downloading the models right away so they are ready by the first
-  // selfie - but not for a guest who only came to browse.
-  useEffect(() => {
-    if (!browsing) loadModels()
-  }, [browsing, loadModels])
-
-  const switchView = (all) => {
-    setParams(all ? { view: 'all' } : {}, { replace: true })
-    window.scrollTo({ top: 0 })
-  }
+  // Start downloading the models right away so they are ready by the first selfie.
+  useEffect(loadModels, [loadModels])
 
   // Release the selfie thumbnails when leaving the page.
   useEffect(() => () => slotsRef.current.forEach((slot) => slot.url && URL.revokeObjectURL(slot.url)), [])
@@ -183,15 +169,7 @@ export default function FindPhotosView() {
           </p>
         </header>
 
-        <ViewTabs browsing={browsing} onChange={switchView} />
-
-        {browsing && (
-          <Card>
-            <AllPhotosGallery />
-          </Card>
-        )}
-
-        {!browsing && phase === 'capture' && (
+        {phase === 'capture' && (
           <>
             {activeIndex >= 0 && (
               <Card className="space-y-4">
@@ -277,10 +255,9 @@ export default function FindPhotosView() {
           </>
         )}
 
-        {!browsing && phase === 'searching' && <Searching />}
+        {phase === 'searching' && <Searching />}
 
-        {!browsing &&
-          phase === 'results' &&
+        {phase === 'results' &&
           (results.length > 0 ? (
             <Card className="space-y-4">
               <div className="text-center">
@@ -328,32 +305,6 @@ export default function FindPhotosView() {
           ))}
       </div>
     </Sky>
-  )
-}
-
-/** Stays on screen while scrolling, so a long album does not bury the way back. */
-function ViewTabs({ browsing, onChange }) {
-  const tab = (active, all, icon, label) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={() => onChange(all)}
-      className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-sm font-black transition
-        ${active ? 'bg-brand-black text-brand-white' : 'text-brand-black hover:bg-brand-yellow'}`}
-    >
-      {icon}
-      {label}
-    </button>
-  )
-  return (
-    <div
-      role="tablist"
-      className="sticky top-2 z-10 grid grid-cols-2 gap-1 rounded-2xl border-[3px] border-brand-black bg-brand-white p-1 shadow-brutal-sm"
-    >
-      {tab(!browsing, false, <ScanFace className="h-4 w-4" />, 'חיפוש לפי סלפי')}
-      {tab(browsing, true, <Images className="h-4 w-4" />, 'כל התמונות')}
-    </div>
   )
 }
 

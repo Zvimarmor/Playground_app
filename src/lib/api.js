@@ -123,21 +123,15 @@ export const findMyPhotos = async (embedding, threshold) =>
 export const ALBUM_PAGE_SIZE = 24
 
 /**
- * One page of the album, newest first. Only the first page asks for the total,
- * so scrolling costs the database nothing beyond the page itself.
+ * One page of the whole album, newest first - admin only, the database checks
+ * the PIN. Guests never browse the album; they only get their own matches.
  *
+ * @param {string} pin
  * @param {number} from  rows already fetched
- * @returns {Promise<{ photos: Omit<MatchedPhoto, 'similarity'>[], total: number | null }>}
+ * @returns {Promise<{ photos: Omit<MatchedPhoto, 'similarity'>[], total: number }>}
  */
-export async function fetchAlbumPage(from) {
-  const { data, count, error } = await supabase
-    .from('photos')
-    .select('id, path, thumb_path, width, height', from === 0 ? { count: 'exact' } : undefined)
-    .order('created_at', { ascending: false })
-    .order('id') // created_at can tie, and pages must not reshuffle between requests
-    .range(from, from + ALBUM_PAGE_SIZE - 1)
-  return { photos: unwrap({ data, error }), total: count }
-}
+export const fetchAlbumPage = async (pin, from) =>
+  unwrap(await supabase.rpc('admin_photo_page', { p_pin: pin, p_from: from, p_limit: ALBUM_PAGE_SIZE }))
 
 /** @returns {Promise<{ source_keys: string[], faces: number }>} */
 export const fetchAlbumIndex = async (pin) => unwrap(await supabase.rpc('admin_photos', { p_pin: pin }))

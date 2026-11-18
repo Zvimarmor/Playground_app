@@ -9,11 +9,10 @@
 --  * Idempotent: running it twice is harmless.
 --  * Runs in one transaction - if any statement fails, nothing changes.
 --
---  Face embeddings are biometric data, so photo_faces is not readable with
---  the anon key. Guests can browse the album through the public columns of
---  photos ("all photos"), or search it through find_my_photos(), which returns
---  photos, never embeddings. The album is filled through admin_add_photo()
---  (admin PIN).
+--  Face embeddings are biometric data, so neither table is readable with
+--  the anon key. The album is filled through admin_add_photo() and browsed
+--  through admin_photo_page() (both admin PIN), and guests search it only
+--  through find_my_photos(), which returns their matches, never embeddings.
 -- =========================================================
 
 begin;
@@ -53,23 +52,18 @@ create index if not exists photo_faces_photo_id_idx on public.photo_faces (photo
 
 alter table public.photos      enable row level security;
 alter table public.photo_faces enable row level security;
-revoke all on public.photos, public.photo_faces from anon, authenticated;
-
--- The "all photos" gallery reads the album directly, one page at a time. Only
--- these columns: source_key holds the original file names and stays private.
+-- An earlier version let anyone browse public.photos ("all photos" on
+-- /find-photos). Closed again: the gallery is admin-only now.
 drop policy if exists "photos public read" on public.photos;
-create policy "photos public read" on public.photos
-  for select to anon, authenticated
-  using (true);
-grant select (id, path, thumb_path, width, height, created_at) on public.photos to anon, authenticated;
+revoke all on public.photos, public.photo_faces from anon, authenticated;
 
 -- ---------- storage --------------------------------------------------
 
 -- 30 MB per file leaves room for the full-resolution originals that
 -- upload_and_rotate.py --upload puts under originals/.
--- Public bucket: a photo is fetched by its URL, a random UUID listed in the
--- photos table. There is no SELECT policy, so the anon key cannot list the
--- bucket - which also keeps originals/ out of reach, as no table points to it.
+-- Public bucket: a photo is fetched by its URL, which is a random UUID that
+-- only find_my_photos() hands out. There is no SELECT policy, so the anon
+-- key cannot list the bucket.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('event-photos', 'event-photos', true, 31457280, array['image/jpeg'])
 on conflict (id) do update set
@@ -92,8 +86,8 @@ create policy "event-photos admin upload" on storage.objects
 -- Every photo that has at least one face with cosine similarity >=
 -- p_threshold to p_embedding, best match first. 0.42 is the default; the
 -- page offers 0.38 ("expanded search") and 0.46 ("not me"). The threshold is
--- clamped to that range here, so a search only ever means "faces like this
--- one". p_embedding must be unit length - a zero vector would make
+-- clamped to that range here, so no client can lower it far enough to list
+-- the whole album. p_embedding must be unit length - a zero vector would make
 -- every similarity NaN, and NaN sorts above any number in Postgres.
 --
 -- The first version took no threshold. Dropped explicitly: CREATE OR REPLACE
@@ -154,6 +148,34 @@ begin
 end;
 $$;
 
+-- One page of the whole album for the admin gallery, newest first. id breaks
+-- created_at ties so pages never reshuffle. At most 100 rows per call.
+create or replace function public.admin_photo_page(p_pin text, p_from int default 0, p_limit int default 24)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  perform public._require_pin(p_pin, 'admin');
+  return jsonb_build_object(
+    'total',  (select count(*) from public.photos),
+    'photos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', p.id, 'path', p.path, 'thumb_path', p.thumb_path, 'width', p.width, 'height', p.height
+             ) order by p.created_at desc, p.id)
+      from (
+        select * from public.photos
+        order by created_at desc, id
+        offset greatest(coalesce(p_from, 0), 0)
+        limit least(greatest(coalesce(p_limit, 24), 1), 100)
+      ) p
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
 -- Records one uploaded photo and its faces. p_faces is
 -- [{"embedding": [512 numbers], "box": [x1,y1,x2,y2], "score": 0.87}, ...].
 -- Re-indexing the same source_key replaces its row and all its faces.
@@ -203,6 +225,7 @@ $$;
 
 grant execute on function public.find_my_photos(extensions.vector, float)                to anon, authenticated;
 grant execute on function public.admin_photos(text)                                       to anon, authenticated;
+grant execute on function public.admin_photo_page(text, int, int)                         to anon, authenticated;
 grant execute on function public.admin_add_photo(text, text, text, text, int, int, jsonb) to anon, authenticated;
 
 commit;

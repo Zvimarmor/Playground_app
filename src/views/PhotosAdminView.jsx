@@ -4,6 +4,7 @@ import { addAlbumPhoto, fetchAlbumIndex, uploadPhotoFile } from '../lib/api'
 import { analyzeFaces, imageToCanvas, loadFaceModels } from '../lib/faces'
 import { usePinGate } from '../hooks/usePinGate'
 import PinGate from '../components/PinGate'
+import AllPhotosGallery from '../components/AllPhotosGallery'
 import { BackButton, Badge, Button, Card, ErrorBanner, FullPageSpinner, Sky } from '../components/ui'
 
 /*
@@ -15,6 +16,9 @@ import { BackButton, Badge, Button, Card, ErrorBanner, FullPageSpinner, Sky } fr
  *
  * Re-running is safe: photos already in the album (same file name and size)
  * are skipped, so a stopped or crashed run simply picks up where it was.
+ *
+ * Below the indexer is the whole album, page by page. Only here - guests
+ * never browse it, they only get their own matches on /find-photos.
  */
 
 const DISPLAY_SIDE = 2048
@@ -281,6 +285,11 @@ function Indexer({ pin, onPinError }) {
               </ul>
             </details>
           )}
+        </Card>
+
+        <Card>
+          {/* Remounted after each run so the new photos show up at the top. */}
+          <AllPhotosGallery key={album.keys.size} pin={pin} onPinError={onPinError} />
         </Card>
       </div>
     </Sky>

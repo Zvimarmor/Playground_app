@@ -11,10 +11,12 @@ const SCROLL_MARGIN = '600px'
 const LIGHTBOX_MARGIN = 3
 
 /**
- * The whole album, newest first, fetched a page at a time as the guest scrolls.
- * There is no "download all" here: it would be well over a thousand files.
+ * The whole album for the admin, newest first, fetched a page at a time on
+ * scroll. There is no "download all" here: it would be well over a thousand files.
+ *
+ * @param {{ pin: string, onPinError: (err: Error) => boolean }} props
  */
-export default function AllPhotosGallery() {
+export default function AllPhotosGallery({ pin, onPinError }) {
   const [photos, setPhotos] = useState([])
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(true)
@@ -31,9 +33,9 @@ export default function AllPhotosGallery() {
     setLoading(true)
     setFailed(false)
     try {
-      const page = await fetchAlbumPage(nextFrom.current)
+      const page = await fetchAlbumPage(pin, nextFrom.current)
       nextFrom.current += page.photos.length
-      if (page.total !== null) setTotal(page.total)
+      setTotal(page.total)
       // Photos added while browsing push older ones into the next page, so one can come twice.
       setPhotos((current) => {
         const seen = new Set(current.map((photo) => photo.id))
@@ -41,13 +43,14 @@ export default function AllPhotosGallery() {
       })
       setHasMore(page.photos.length === ALBUM_PAGE_SIZE)
     } catch (err) {
+      if (onPinError(err)) return
       console.error('Album page failed to load', err)
       setFailed(true)
     } finally {
       fetching.current = false
       setLoading(false)
     }
-  }, [])
+  }, [pin, onPinError])
 
   useEffect(() => {
     loadMore()
@@ -79,7 +82,7 @@ export default function AllPhotosGallery() {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border-2 border-brand-black bg-brand-yellow shadow-brutal-xs">
           <ImageOff className="h-8 w-8" />
         </div>
-        <p className="text-base font-extrabold">התמונות עוד לא עלו לאלבום. נסו שוב בקרוב.</p>
+        <p className="text-base font-extrabold">האלבום עדיין ריק. התמונות יופיעו כאן אחרי העיבוד וההעלאה למעלה.</p>
       </div>
     )
   }
@@ -88,7 +91,7 @@ export default function AllPhotosGallery() {
     <div className="space-y-4">
       {total > 0 && (
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-black">כל התמונות מהמסיבה</h2>
+          <h2 className="text-lg font-black">3. כל התמונות באלבום</h2>
           <Badge tone="lime">{total} תמונות</Badge>
         </div>
       )}
